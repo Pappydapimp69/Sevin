@@ -37,7 +37,7 @@ Then open http://localhost:8000. Start with **Training camp**.
 | run | Shift | LT / L3 | push the left thumb all the way |
 | use (pick up, chop, light, pylon) | E / Space | A | Use |
 | ask the person you face | Q | X | Ask |
-| call everyone in earshot | F | Y | Call |
+| whistle (whoever hears and is not busy comes) | F | Y | Whistle |
 | camp: make, take down, plan, sleep | C | LB | Camp |
 | sleep (from dusk) | Z | RB | Sleep |
 | pause | Esc | Start | ☰ |

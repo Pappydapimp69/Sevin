@@ -135,8 +135,8 @@ function verb(v) {
       break;
     }
     case "call": {
-      const heard = S.callOut(sim);
-      S.say(sim, heard.length ? "You call out." : "You call out. Nothing comes back.");
+      S.whistle(sim);
+      S.say(sim, "You whistle.");
       break;
     }
     case "camp": if (!sim.tutorial || sim.tut.step >= 8) ui.campMenu(sim, campVerbs); break;
@@ -222,7 +222,12 @@ function frame(now) {
       if (!sim.tutorial && now - lastSave > 15000) { lastSave = now; Save.saveRun(sim); }
     }
     // events: sound, and the end of a run; drained whether or not paused
-    for (const e of sim.events) { audio.event(e, sim); if (e.kind === "over") finish(sim.over); }
+    for (const e of sim.events) {
+      audio.event(e, sim);
+      if (e.kind === "over") finish(sim.over);
+      // a whistle back is heard, not seen: say where it came from
+      if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[bearingOf(sim.player, e)]}.`);
+    }
     sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;
     const action = paused ? null : S.resolveAction(sim, tolerance());

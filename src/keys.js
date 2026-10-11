@@ -45,7 +45,7 @@ export const KEYS = Object.freeze({
     run: "pushing the left thumb all the way",
     act: "Use",
     ask: "Ask",
-    call: "Call",
+    call: "Whistle",
     camp: "Camp",
     sleep: "Sleep",
     pause: "☰",

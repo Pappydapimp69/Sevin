@@ -19,7 +19,7 @@ export const WORK_SPEED = 8;         // time runs this much faster while you wor
 export const DAWN = 6, DUSK = 18;
 export const CAMP_R = 12;            // metres: the campsite, and the fire's shield
 export const REACH = 3;              // metres: hands' reach
-export const HEAR = 45;              // metres: how far a call carries
+export const HEAR = 50;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
 export const TASKS = ["follow", "chop", "gather", "camp"];
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "at camp" };
@@ -276,6 +276,13 @@ function speedOf(m) {
 function tickMember(sim, m, dt, hours) {
   const p = sim.player;
   m.stateT += hours;
+
+  // They heard the whistle a moment ago; now they come.
+  if (m.answerAt != null && sim.time >= m.answerAt) {
+    m.answerAt = null;
+    m.task = "follow"; m.state = "idle"; m.site = null; m.chopId = null;
+    sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y });
+  }
   const hr = hourOf(sim.time);
   const lateDay = hr >= DUSK - 1.5 || hr < DAWN;   // a shift that no longer fits is not started
 
@@ -570,21 +577,35 @@ export function strikeCamp(sim) {
   return true;
 }
 
-/** Call: everyone who can hear you comes, after the chunk they are on. */
-export function callOut(sim) {
-  const heard = [];
-  for (const m of party(sim)) {
-    if (dist(m, sim.player) > HEAR) continue;
-    // the far-gone may not answer; the call looks the same either way
-    if (m.sanity < 0.25) continue;
-    m.task = "follow"; m.state = "idle"; m.site = null;
-    if (m.load > 0) { sim.camp.pile += 0; }    // they keep what they carry
-    heard.push(m.id);
-  }
-  sim.events.push({ kind: "call" });
-  return heard;
+/**
+ * Busy: on a shift. Cutting at the deadfall, out for wood or carrying a load
+ * home. A whistle does not pull anyone off work they were set at dawn.
+ */
+export function busy(sim, m) {
+  if (m.task === "gather") return true;
+  if (m.task === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
+  return m.state === "home" && m.load > 0;
 }
 
+/**
+ * Whistle. Whoever hears it and is not busy whistles back and comes, after a
+ * moment: the further off, the longer before they set out. Nothing is
+ * instant, and nothing says who did not come. The far-gone may not answer;
+ * the whistle sounds the same either way. Draws nothing from the run.
+ */
+export function whistle(sim) {
+  const heard = [];
+  for (const m of party(sim)) {
+    const d = dist(m, sim.player);
+    if (d > HEAR || m.task === "follow" || m.answerAt != null) continue;
+    if (busy(sim, m) || m.sanity < 0.25) continue;
+    const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
+    m.answerAt = sim.time + 0.04 + d * 0.0025 + jitter * 0.03;   // ~1-4 s
+    heard.push(m.id);
+  }
+  sim.events.push({ kind: "whistle" });
+  return heard;
+}
 // The two-hands rule. The nearest companion is the second pair. A fake cannot
 // be: it is gone the moment the pylon catches. The pylon is spent either way.
 export function lightPylon(sim, i) {

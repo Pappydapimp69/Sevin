@@ -68,6 +68,12 @@ export function createAudio() {
     for (const [d, f] of [[0, 330], [0.55, 262], [2.2, 330], [2.75, 262]]) tone(f, 0.5, 0.18, pan, -30, "triangle", d);
   }
 
+  // Two rising notes, like someone whistling through their fingers.
+  function whistleTone(pan, gain, pitch = 1) {
+    tone(1700 * pitch, 0.22, gain, pan, 500 * pitch, "sine");
+    tone(2100 * pitch, 0.35, gain, pan, 400 * pitch, "sine", 0.28);
+  }
+
   function event(e, sim) {
     if (!ctx) return;
     switch (e.kind) {
@@ -78,7 +84,14 @@ export function createAudio() {
       case "pylonLit": tone(523, 1.4, 0.25); tone(784, 1.6, 0.18, 0, 0, "sine", 0.15); break;
       case "unmade": tone(196, 2.2, 0.3, 0, -60, "sawtooth"); break;
       case "sentHome": tone(659, 1.2, 0.2); tone(988, 1.4, 0.15, 0, 0, "sine", 0.2); break;
-      case "call": tone(440, 0.35, 0.22, 0, 40, "triangle"); tone(523, 0.45, 0.22, 0, -20, "triangle", 0.3); break;
+      case "whistle": whistleTone(0, 0.22); break;
+      case "answer": {
+        // their whistle back: from where they are, fainter with distance
+        const dx = e.x - sim.player.x, dy = e.y - sim.player.y, d = Math.hypot(dx, dy);
+        const a = Math.atan2(dx, dy) - sim.player.yaw;
+        whistleTone(Math.max(-1, Math.min(1, Math.sin(a))), Math.max(0.04, 0.16 * (1 - d / 60)), 0.9);
+        break;
+      }
       case "dawn": if (sim.call) setTimeout(() => call(sim.call.bearing, sim.player.yaw), 600); break;
       case "rescued": tone(392, 0.8, 0.2); break;
     }

@@ -43,7 +43,8 @@ different game. SEVIN has one game, so each module has one job.
   practice, with noise.
 - **Plan.** Dawn at camp sets tasks (chop, gather, follow, guard camp). Dusk sets
   watch or sleep, and lights the fire. A task is a shift; a member comes home
-  when it ends. In the field you can only call people to you.
+  when it ends. In the field you can only whistle: whoever hears it and is
+  not on a shift whistles back and comes, after a moment.
 - **Camp.** One at a time. Take down 1h, make 2h, helpers speed both. The
   woodpile belongs to the camp. The fire belongs to the camp, burns wood, and
   only shields the campsite at night.

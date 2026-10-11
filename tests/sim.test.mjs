@@ -122,7 +122,8 @@ t("the tutorial: every step, and nobody's mind is touched", () => {
   sim.sticks[0] = sim.sticks[1] = sim.sticks[2] = true; sim.camp.pile = 3;
   S.tendFire(sim);
   sim.stats.asked = 1;
-  S.callOut(sim);
+  S.whistle(sim);
+  for (let i = 0; i < 100; i++) S.tick(sim, 0.1, {});
   sim.deadfalls[0].done = 1;
   sim.pylons[0].spent = true; sim.pylons[0].litAt = sim.time;
   sim.camp.up = false;
@@ -172,4 +173,37 @@ t("touch tolerance widens reach without changing what is there", () => {
   sim.player.x = st.x; sim.player.y = st.y - 3; sim.player.yaw = 0;
   assert.equal(S.targetFor(sim, "stick", k), null);
   assert.ok(S.targetFor(sim, "stick", k, 1.4));
+});
+
+t("a whistle: idle people in earshot come, after a moment; busy and far ones do not", () => {
+  const sim = S.createRun({ seed: 6 });
+  sim.plan.dawnDay = 1;
+  sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
+  const [idle, cutter, gatherer, far] = S.party(sim);
+  idle.task = "camp";
+  cutter.task = "chop"; cutter.chopId = 0;
+  gatherer.task = "gather";
+  far.task = "camp"; far.x = sim.player.x + S.HEAR + 10; far.y = sim.player.y;
+  const r0 = sim.rngState;
+  const heard = S.whistle(sim);
+  assert.deepEqual(heard, [idle.id]);
+  assert.equal(idle.task, "camp", "came instantly");
+  assert.equal(sim.rngState, r0, "whistling drew from the run");
+  S.tick(sim, 0.1, {});
+  assert.equal(idle.task, "camp", "came within a tenth of a second");
+  for (let i = 0; i < 60; i++) S.tick(sim, 0.1, {});
+  assert.equal(idle.task, "follow", "never came");
+  assert.equal(cutter.task, "chop");
+  assert.equal(gatherer.task, "gather");
+  assert.equal(far.task, "camp");
+});
+
+t("the further off, the longer before they set out", () => {
+  const sim = S.createRun({ seed: 6 });
+  const [a, b] = S.party(sim);
+  a.task = b.task = "camp";
+  a.x = sim.player.x + 3; a.y = sim.player.y;
+  b.x = sim.player.x + 40; b.y = sim.player.y;
+  S.whistle(sim);
+  assert.ok(b.answerAt - sim.time > a.answerAt - sim.time + 0.05);
 });

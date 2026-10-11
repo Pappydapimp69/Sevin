@@ -251,7 +251,7 @@ export function createUI(api) {
   const CONTROL_ROWS = [
     ["move", "walk"], ["look", "look"], ["run", "run"],
     ["act", "use what is in front of you: pick up, chop, light, feed, a pylon"],
-    ["ask", "ask the person you are looking at"], ["call", "call everyone in earshot to you"],
+    ["ask", "ask the person you are looking at"], ["call", "whistle: whoever hears it and is not busy comes"],
     ["camp", "camp: make it, take it down, plan the day, sleep"], ["sleep", "sleep (from dusk)"],
     ["pause", "pause"], ["menu", "move around menus"], ["back", "back out of a menu"],
   ];

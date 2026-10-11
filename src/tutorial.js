@@ -50,7 +50,7 @@ export const STEPS = [
   },
   {
     id: "call", verb: "call",
-    text: "Press {call} to call. Anyone who hears you drops what they are doing and comes.",
+    text: "Press {call} to whistle. Anyone who hears it and is not busy whistles back and comes. It takes them a moment.",
     done: (s) => s.members.some((m) => m.task === "follow"),
   },
   {
