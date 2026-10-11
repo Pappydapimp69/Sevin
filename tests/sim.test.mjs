@@ -376,17 +376,6 @@ t("tasks keep through the night; after dark nobody leaves the fire; at first lig
 t("every skill does something you can see in play", () => {
   // cutting: a deadfall goes faster
   assert.ok(S.chopRate({ skills: { cut: 4 } }) > S.chopRate({ skills: { cut: 0 } }));
-  // carrying: a bigger load
-  const load = (carry) => {
-    const sim = S.createRun({ seed: 5, camp: true });
-    sim.plan.dawnDay = 1;
-    const [a] = S.party(sim);
-    a.skills.carry = carry;
-    S.setDawnPlan(sim, { [a.id]: "gather" });
-    for (let i = 0; i < 3000 && !a.load; i++) S.tick(sim, 0.1, {});
-    return a.load;
-  };
-  assert.ok(load(4) > load(0), "carrying changes nothing");
   // firecraft: the night's watch gets through on less wood
   const used = (fire) => {
     const sim = S.createRun({ seed: 5, camp: true });
@@ -414,7 +403,7 @@ t("every task says which skill it leans on, and it is the one the sim uses", () 
   assert.ok(ui.includes("TASK_SKILL[t]") && ui.includes('classList.toggle("used"'), "the plan screen does not show it");
 });
 
-t("gathering is chopping: an hour a chop, 1 to 3 pieces back from it", () => {
+t("gathering is chopping: an hour a chop, one piece back from it", () => {
   for (const carry of [0, 2, 6]) {
     const sim = S.createRun({ seed: 5, camp: true });
     sim.plan.dawnDay = 1;
@@ -426,10 +415,10 @@ t("gathering is chopping: an hour a chop, 1 to 3 pieces back from it", () => {
       S.tick(sim, 0.1, {});
       if (started == null && a.gathering > 0) started = sim.time;
       if (started != null && a.load && trips.length === 0) trips.push({ took: sim.time - started, load: a.load });
-      if (sim.camp.pile > pile) { assert.ok(sim.camp.pile - pile <= 3, `a trip brought ${sim.camp.pile - pile}`); pile = sim.camp.pile; }
+      if (sim.camp.pile > pile) { assert.ok(sim.camp.pile - pile <= 1, `a trip brought ${sim.camp.pile - pile}`); pile = sim.camp.pile; }
     }
     assert.ok(trips[0].took >= 0.95, `a chop took ${trips[0].took} h`);   // an hour, not the constant: it is what is tested
-    assert.ok(trips[0].load >= 1 && trips[0].load <= 3);
+    assert.equal(trips[0].load, 1);
     assert.ok(sim.camp.pile - 3 <= 27, "too much wood for a day");
   }
 });
@@ -491,14 +480,13 @@ t("using their judgement: they make camp when there is none, keep the pile up, c
   assert.ok("chop" in s && "camp" in s && "gather" in s);
 });
 
-t("a chop brings 1 to 3 pieces; carrying makes a bigger haul likelier, not certain", () => {
-  const avg = (carry) => {
-    let sum = 0, seen = new Set();
-    for (let k = 0; k < 400; k++) { const n = S.woodPerChop({ id: 3, skills: { carry } }, 11, k); assert.ok(n >= 1 && n <= 3, String(n)); sum += n; seen.add(n); }
-    return { mean: sum / 400, seen };
-  };
-  const lo = avg(0), hi = avg(5);
-  assert.ok(hi.mean > lo.mean + 0.4, `${lo.mean} vs ${hi.mean}`);
-  assert.equal(lo.seen.size, 3, "an unskilled hand never got 1, 2 and 3");
-  assert.ok(hi.seen.has(1) || hi.seen.has(2), "a skilled hand always got 3: that is certain, not likely");
+t("a gather chop brings exactly one piece, whatever the skill", () => {
+  for (const carry of [0, 3, 6]) assert.equal(S.woodPerChop({ skills: { carry } }, 11, 5), 1);
+});
+
+t("deeper woods burn the fire faster", () => {
+  const sim = S.createRun({ seed: 3, camp: true });
+  const r0 = S.burnRate(sim);
+  sim.camp.y = 3 * 40 * 2 + 10;                      // the fourth area
+  assert.ok(S.burnRate(sim) >= r0 * 2, `${r0} -> ${S.burnRate(sim)}`);
 });

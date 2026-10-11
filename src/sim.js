@@ -39,11 +39,10 @@ export const PITCH_HOURS = 5;
 // pieces out of it. Carrying makes a bigger haul likelier, never certain.
 // The roll is a side hash (who, which chop), not the run stream.
 export const WOOD_CHOP_HOURS = 1;
-export function woodPerChop(m, seed = 0, k = 0) {
-  const r = stream(hash("haul", seed, m.id ?? 0, k))();
-  const c = m.skills?.carry || 0;
-  return 1 + (r < 0.35 + 0.1 * c ? 1 : 0) + (r < 0.1 + 0.08 * c ? 1 : 0);
-}
+export function woodPerChop() { return 1; }          // one piece an hour's chop
+
+/** Deeper woods eat the fire faster: +50% a level of depth below the first. */
+export const burnRate = (sim) => 1 + 0.5 * areaAt(sim, sim.camp.y);
 export const STRIKE_HOURS = 2;
 
 // ---------------------------------------------------------------------------
@@ -1083,7 +1082,7 @@ export function tick(sim, dt, input = {}) {
 
   // the fire burns whenever it is lit
   if (sim.camp.lit) {
-    sim.camp.fire -= hours;
+    sim.camp.fire -= hours * burnRate(sim);
     if (sim.camp.fire <= 0) { sim.camp.fire = 0; sim.camp.lit = false; sim.events.push({ kind: "fireOut" }); Phantom.onFireOut(sim); }
   }
   Phantom.tickPhantom(sim, hours);

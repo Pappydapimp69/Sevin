@@ -125,7 +125,8 @@ number or word for the meter is ever shown.
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
-| gathering | an hour's chop, then home with 1-3 pieces; carrying makes more likely | `WOOD_CHOP_HOURS`, `woodPerChop` |
+| gathering | an hour's chop, one piece | `WOOD_CHOP_HOURS` |
+| fire burn rate | x(1 + 0.5 per area of depth) | `burnRate` |
 | carrying | pieces per chop; wood carried when moving camp | `woodPerChop` |
 | building | camp up and down +15%/level | `sim.js` |
 | watchfulness | on watch: night's take chance -3%/level (cap 18%), watch's extra exposure -25%/level | `night.js` |

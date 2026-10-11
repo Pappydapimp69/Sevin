@@ -16,7 +16,7 @@ export const SKILL_LABEL = Object.freeze({
 // take chance and who it takes (night.js).
 export const SKILL_WHAT = Object.freeze({
   cut: "Chops through a deadfall faster. Deadfalls block the trail north.",
-  carry: "A bigger haul from each chop of firewood, and more of the woodpile carried when you move camp.",
+  carry: "More of the woodpile carried when you move camp.",
   fire: "Makes each stick they put on the fire burn longer. A watch who knows fires gets through the night on less wood.",
   build: "Puts the camp up, and takes it down, faster.",
   watch: "On watch at night, makes it less likely the night takes anyone, and less likely to take them.",
