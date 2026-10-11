@@ -371,3 +371,39 @@ t("tasks keep through the night; after dark nobody leaves the fire; at first lig
   for (let i = 0; i < 1500; i++) S.tick(sim, 0.1, {});
   assert.ok(!near(cutter), "the cutter did not go back out in the morning");
 });
+
+t("every skill does something you can see in play", () => {
+  // cutting: a deadfall goes faster
+  assert.ok(S.chopRate({ skills: { cut: 4 } }) > S.chopRate({ skills: { cut: 0 } }));
+  // carrying: a bigger load
+  const load = (carry) => {
+    const sim = S.createRun({ seed: 5, camp: true });
+    sim.plan.dawnDay = 1;
+    const [a] = S.party(sim);
+    a.skills.carry = carry;
+    S.setDawnPlan(sim, { [a.id]: "gather" });
+    for (let i = 0; i < 3000 && !a.load; i++) S.tick(sim, 0.1, {});
+    return a.load;
+  };
+  assert.ok(load(4) > load(0), "carrying changes nothing");
+  // firecraft: the night's watch gets through on less wood
+  const used = (fire) => {
+    const sim = S.createRun({ seed: 5, camp: true });
+    sim.plan.dawnDay = 1;
+    sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
+    while (!S.isNight(sim.time)) { S.tick(sim, 0.1, {}); if (sim.plan.pending) S.setDuskPlan(sim, {}); }
+    const [w] = S.party(sim);
+    w.skills.fire = fire; w.x = sim.camp.x; w.y = sim.camp.y;
+    sim.camp.pile = 20; sim.camp.lit = true; sim.camp.fire = 0.5;
+    S.setDuskPlan(sim, { [w.id]: true });
+    const p0 = sim.camp.pile;
+    sleep(sim);
+    return p0 - sim.camp.pile;
+  };
+  assert.ok(used(4) < used(0), `firecraft changes nothing: ${used(4)} vs ${used(0)} sticks`);
+});
+
+t("the recruit screen says what every skill does", () => {
+  const src = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
+  for (const k of ["cut", "carry", "fire"]) assert.ok(new RegExp(`\\b${k}: "[^"]{20,}"`).test(src.slice(src.indexOf("SKILL_WHAT"))), k + " is not explained");
+});

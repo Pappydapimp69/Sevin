@@ -5,7 +5,7 @@
 // calls. Draw unconditionally, use conditionally.
 
 import {
-  draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
+  burnHours, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
   areaAt, shielded, canStand, reachable, note, say, DRAIN,
 } from "./sim.js";
 import { WEATHERS } from "./chronicle.js";
@@ -60,8 +60,10 @@ export function sleep(sim) {
   let fuel = camp.up && camp.lit ? camp.fire : 0;
   const watchers = party(sim).filter((m) => m.watch && atCamp(sim, m));
   if (camp.up && camp.lit && watchers.length && fuel < hours) {
-    const need = Math.ceil((hours - fuel) / 1.5), use = Math.min(need, camp.pile);
-    camp.pile -= use; fuel += use * 1.5;
+    // the best hand at a fire among the watch makes the pile last longest
+    const per = Math.max(...watchers.map((w) => burnHours(w)));
+    const need = Math.ceil((hours - fuel) / per), use = Math.min(need, camp.pile);
+    camp.pile -= use; fuel += use * per;
   }
   const fireHeld = camp.up && fuel >= hours;
   const fireHours = Math.min(fuel, hours);

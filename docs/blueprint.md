@@ -92,6 +92,8 @@ different game. SEVIN has one game, so each module has one job.
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
+| carrying | load 2 + carry; camp work +10%/level | `sim.js` |
+| firecraft | each stick burns 1.5 h +20%/level; the watch uses its best hand | `burnHours` |
 | hands | stick 0.35 s, feed 1.2 s, light / pylon / rescue 3 s; moving lets go | `ACT_TIME` |
 | making camp | 5 person-hours (about 1 h with everyone), at the world's pace, drawn in stages | `PITCH_HOURS` |
 | taking camp down | 2 person-hours | `STRIKE_HOURS` |

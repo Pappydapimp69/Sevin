@@ -25,6 +25,13 @@ const btn = (label, fn, cls = "") => h("button", { class: cls, disabled: cls.inc
 
 const SKILLS = ["cut", "carry", "fire"];
 const SKILL_LABEL = { cut: "Cutting", carry: "Carrying", fire: "Firecraft" };
+// What each skill DOES, in play. Kept next to the numbers in sim.js:
+// chopRate (+18%/level), load 2+carry and camp work +10%/level, burnHours +20%/level.
+const SKILL_WHAT = {
+  cut: "Chops through a deadfall faster. Deadfalls block the trail north.",
+  carry: "Brings more wood back each trip, and makes or takes down camp faster.",
+  fire: "Makes each stick they put on the fire burn longer. A watch who knows fires gets through the night on less wood.",
+};
 const dots = (n) => "●".repeat(Math.max(0, Math.round(n))) + "○".repeat(Math.max(0, 6 - Math.round(n)));
 
 export function fireWords(camp) {
@@ -132,7 +139,7 @@ export function createUI(api) {
       body.replaceChildren(
         h("p", {}, `Five people walk in with you. Spend ${POINTS} points on what they are good at. Points left: `, h("b", { id: "pts" }, left())),
         h("table", { class: "grid" },
-          h("tr", {}, h("th", {}, ""), ...SKILLS.map((k) => h("th", {}, SKILL_LABEL[k]))),
+          h("tr", {}, h("th", {}, ""), ...SKILLS.map((k) => h("th", {}, SKILL_LABEL[k], h("div", { class: "what" }, SKILL_WHAT[k])))),
           ...team.map((m, i) => h("tr", {},
             h("td", { class: "name" }, m.name),
             ...SKILLS.map((k) => h("td", {},
@@ -142,7 +149,7 @@ export function createUI(api) {
             )),
           )),
         ),
-        h("p", { class: "small" }, "Anyone can do anything. Skill makes it faster. Spread it and you are slow; stack it and one loss cripples you."),
+        h("p", { class: "small" }, "Anyone can do anything; skill only makes it go further or faster, and it grows with use. Spread the points and everyone is slow. Stack them and losing one person hurts."),
       );
     }
     paint();

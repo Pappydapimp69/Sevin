@@ -65,6 +65,8 @@ function title() {
 }
 
 function recruit(seed) {
+  sim = null;                // nothing behind the choice: no training text, no HUD
+  ui.hideHud();
   const names = makeRoster(stream(hash("names", seed)), 5);
   ui.recruit(names, (team) => {
     const run = S.createRun({ seed, party: team });

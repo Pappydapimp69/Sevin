@@ -631,16 +631,23 @@ export function act(sim, target = null, tolerance = 1) {
 }
 
 /** Someone at camp lights the fire or feeds it, a stick at a time, if there is wood. */
+/**
+ * Firecraft: how long a stick burns in their hands. Anyone can keep a fire;
+ * someone who knows how makes the woodpile last (+20% a level).
+ */
+export const burnHours = (who) => 1.5 * (1 + 0.2 * (who && who !== "you" ? who.skills.fire : 0));
+
 function memberTends(sim, m) {
   if (!sim.camp.up || sim.camp.pile <= 0) return;
   if (m.tendAt != null && sim.time - m.tendAt < 0.25) return;   // one stick a quarter hour
   m.tendAt = sim.time;
   sim.camp.pile -= 1;
   if (!sim.camp.lit) {
-    sim.camp.lit = true; sim.camp.fire = 3;
+    sim.camp.lit = true; sim.camp.fire = 2 * burnHours(m);
     note(sim, { verb: "lit", actor: m.id, object: "fire", cls: "fire", x: sim.camp.x, y: sim.camp.y });
     sim.events.push({ kind: "lit", by: m.id });
-  } else sim.camp.fire = Math.min(12, sim.camp.fire + 1.5);
+  } else sim.camp.fire = Math.min(12, sim.camp.fire + burnHours(m));
+  practice(sim, m, "fire");
 }
 
 /** Light the fire, or feed it, from the camp's woodpile. */
