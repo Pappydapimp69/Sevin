@@ -370,16 +370,36 @@ export function createRenderer(canvas) {
     const sway = windy ? Math.sin(performance.now() / 500) * 0.02 : 0;
     for (const c of B.crowns) c.rotation.z = sway;
 
-    // sticks that are not there: drawn exactly like the real ones
-    const ph = phantomSticks(sim);
-    B.phantoms ||= [];
-    ph.forEach((s, i) => {
+    // things on the ground that are not there. Still, they are drawn exactly
+    // like the real sticks (a snake lies as a stick lies). Woken, they slither.
+    const all = phantomSticks(sim);
+    const still = all.filter((s) => !s.slither), woken = all.filter((s) => s.slither);
+    B.phantoms ||= []; B.snakes ||= [];
+    still.forEach((s, i) => {
       let m = B.phantoms[i];
       if (!m) { m = new THREE.Mesh(B.stickGeo, B.stickMat); scene.add(m); B.phantoms[i] = m; B.picks.push(m); }
       m.visible = true; m.rotation.set(Math.PI / 2, 0, s.rot); m.position.set(s.x, 0.08, -s.y);
       m.userData.pick = { kind: "stick", id: s.id };
     });
-    for (let i = ph.length; i < B.phantoms.length; i++) B.phantoms[i].visible = false;
+    for (let i = still.length; i < B.phantoms.length; i++) B.phantoms[i].visible = false;
+    woken.forEach((s, i) => {
+      let sn = B.snakes[i];
+      if (!sn) {
+        const g = new THREE.Group(), segs = [];
+        for (let k = 0; k < 6; k++) { const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.07 - 0.009 * k, 0.07 - 0.009 * k, 0.32, 6), B.stickMat); g.add(seg); segs.push(seg); }
+        scene.add(g); sn = { g, segs }; B.snakes[i] = sn;
+      }
+      sn.g.visible = true;
+      const dx = Math.cos(s.ang), dy = Math.sin(s.ang), t = s.t;
+      sn.segs.forEach((seg, k) => {
+        const back = k * 0.27, w = Math.sin(t * 11 - k * 1.1) * 0.15 * Math.min(1, t * 2);
+        const px = s.x - dx * back - dy * w, py = s.y - dy * back + dx * w;
+        const lift = k === 0 ? Math.max(0, Math.sin(t * 5)) * 0.1 : 0;
+        seg.position.set(px, 0.07 + lift - s.sink * 0.25, -py);
+        seg.rotation.set(0, Math.atan2(dy + dx * Math.cos(t * 11 - k * 1.1) * 0.6, dx - dy * Math.cos(t * 11 - k * 1.1) * 0.6), Math.PI / 2);
+      });
+    });
+    for (let i = woken.length; i < B.snakes.length; i++) B.snakes[i].g.visible = false;
 
     // the target marker
     const t = view.target, M = B.marker;

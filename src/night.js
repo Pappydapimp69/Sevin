@@ -68,7 +68,7 @@ export function startKeystone(sim, d) {
   for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
   for (const m of all) { m.away = true; m.state = "idle"; m.watch = false; }
   sim.keystone = { done: false, active: true, order: all.map((m) => m.id), nextAt: sim.time + 0.25 };
-  sim.plan.pending = "dawn";                   // set the day now; they start it as they arrive
+  sim.plan.pending = null;                     // nothing to plan, and no fire to light, until they are all back
   say(sim, "You wake and nobody is here. The camp is empty.", "warn");
 }
 

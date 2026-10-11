@@ -103,6 +103,7 @@ export function createAudio() {
   function event(e, sim) {
     if (!ctx) return;
     switch (e.kind) {
+      case "hiss": burst({ freq: 6000, q: 0.6, dur: 0.9, gain: 0.16, type: "highpass" }); burst({ freq: 3500, q: 1, dur: 0.6, gain: 0.08 }); break;
       case "stick": burst({ freq: 1800, dur: 0.06, gain: 0.25 }); break;
       case "dropped": for (let i = 0; i < 3; i++) setTimeout(() => burst({ freq: 500, dur: 0.1, gain: 0.3 }), i * 90); break;
       case "lit": burst({ freq: 300, dur: 0.6, gain: 0.4, type: "lowpass" }); break;

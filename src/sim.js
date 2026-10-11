@@ -595,8 +595,8 @@ export function actionTargets(sim, tolerance = 1) {
     if (!sim.sticks[i] && dist(W.sticks[i], p) < R(2.6)) out.push({ kind: "stick", id: i, x: W.sticks[i].x, y: W.sticks[i].y, h: 0.6, label: "Pick up wood" });
   // a failing mind: sticks that are not there, and a dead fire that seems to burn
   for (const ps of Phantom.phantomSticks(sim))
-    if (dist(ps, p) < R(2.6)) out.push({ kind: "stick", id: ps.id, x: ps.x, y: ps.y, h: 0.6, label: "Pick up wood", phantom: true });
-  if (sim.camp.up && dist(sim.camp, p) < R(REACH)) {
+    if (!ps.slither && dist(ps, p) < R(2.6)) out.push({ kind: "stick", id: ps.id, x: ps.x, y: ps.y, h: 0.6, label: "Pick up wood", phantom: true });
+  if (sim.camp.up && !sim.keystone.active && dist(sim.camp, p) < R(REACH)) {
     const pile = sim.camp.pile > 0 ? "" : " (no wood in the pile)";
     const seen = Phantom.shownFire(sim);
     out.push({ kind: seen.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, phantom: seen.phantom, label: (seen.lit ? "Feed the fire" : "Light the fire") + pile });
@@ -705,15 +705,14 @@ function keystoneStep(sim) {
       const cx = sim.player.x + Math.cos(a) * d, cy = sim.player.y + Math.sin(a) * d;
       if (canStand(sim, cx, cy) && reachable(sim, sim.player, { x: cx, y: cy })) { x = cx; y = cy; break; }
     }
-    m.away = false; m.x = x; m.y = y; m.called = false; m.state = "idle";   // straight to the work they were set
+    m.away = false; m.x = x; m.y = y; m.called = true; m.state = "idle";
     say(sim, `${m.name} comes in out of the trees.`, "talk");
     sim.events.push({ kind: "returned", id: m.id });
   }
   k.nextAt = sim.time + 0.3 + stream(hash("gap", sim.seed, k.order.length))() * 0.3;
   if (!k.order.length) {
     k.active = false; k.done = true;
-    // the plan was set at first light; if it somehow was not, it is asked for now
-    sim.plan.pending = sim.plan.dawnDay === today(sim) ? null : "dawn";
+    sim.plan.pending = "dawn";                // now the day can be set, and the fire lit
     say(sim, "That is everyone.", "info");
   }
 }

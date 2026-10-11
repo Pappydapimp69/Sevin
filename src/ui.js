@@ -236,7 +236,7 @@ export function createUI(api) {
     const items = [];
     if (sim.camp.up) {
       items.push(btn("Take the camp down", () => { close(); v.strike(); }, v.canStrike() ? "" : "disabled"));
-      if (atCamp(sim, sim.player) && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
+      if (atCamp(sim, sim.player) && !sim.keystone.active && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
     } else {
       const here = sim.pitch && Math.hypot(sim.pitch.x - sim.player.x, sim.pitch.y - sim.player.y) < 5;
       items.push(btn(here ? "Keep making camp" : "Make camp here", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));

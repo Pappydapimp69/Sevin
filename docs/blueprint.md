@@ -113,9 +113,11 @@ plan opens when the last is back. From seed, no run-stream draws; old saves skip
 
 ## Your own mind (`phantom.js`)
 
-Your meter drains like everyone's and nothing announces it. Below 0.55 the ground
-offers sticks that are not there (same ones every time you look, derived from
-seed, day and place); you can pick them up and the pack count rises, but only the
+Your meter drains like everyone's and nothing announces it. Below 0.75 the ground
+offers sticks that are not there, fixed in the world on a 5 m grid (derived from
+seed, day and cell, so nothing pops in round you). About 40% of them are not
+sticks: come within 4 m and the thing wakes, hisses and slithers away, then sinks
+into the leaves; you can pick them up and the pack count rises, but only the
 SHOWN count. Walking into camp you "drop" them and the pile does not grow.
 Below 0.35, when the real fire dies at camp it seems to keep burning, shrinks on
 schedule and asks to be fed; feeding spends REAL wood and warms nothing. Others at
@@ -134,7 +136,7 @@ number or word for the meter is ever shown.
 | what | value | where |
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
-| deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
+| deadfall | 90 person-hours in area 1, 44 after; cut skill +18%/level | `world.js`, `chopRate` |
 | gathering | an hour's chop, one piece | `WOOD_CHOP_HOURS` |
 | fire burn rate | x(1 + 0.5 per area of depth) | `burnRate` |
 | carrying | pieces per chop; wood carried when moving camp | `woodPerChop` |
