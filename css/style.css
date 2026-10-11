@@ -106,3 +106,17 @@ select { font: inherit; background: #1d241c; color: var(--ink); border: 1px soli
   #tut { top: 64px; }
   #carry { max-width: 45vw; font-size: .85em; }
 }
+
+/* Team select, after Seven: a card per kind of team, one tap */
+.field-label { display: block; color: var(--dim); font-size: .78em; letter-spacing: .14em; text-transform: uppercase; margin: 6px 0 8px; }
+.teamcards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.teamcard { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; min-height: 4.4em; padding: 10px 12px; text-align: left; }
+.option-title { display: block; font-size: .92em; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); }
+.option-detail { display: block; font-size: .72em; letter-spacing: .08em; text-transform: uppercase; color: #8c9686; }
+button.teamcard.sel, button.teamcard.sel:hover:not(:disabled), button.teamcard.sel:focus-visible { background: var(--accent); border-color: var(--accent); }
+.teamcard.sel .option-title, .teamcard.sel .option-detail { color: #11160f; }
+.roster { list-style: none; margin: 8px 0 12px; padding: 0; border-top: 1px solid #263026; }
+.roster li { display: flex; justify-content: space-between; padding: 7px 4px; border-bottom: 1px solid #263026; }
+.roster .name { color: var(--accent); }
+.roster .focus { color: var(--dim); font-size: .85em; letter-spacing: .06em; text-transform: uppercase; }
+@media (max-width: 600px) { .teamcards { grid-template-columns: 1fr 1fr; } }

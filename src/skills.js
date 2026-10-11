@@ -31,3 +31,25 @@ export const blankSkills = () => Object.fromEntries(SKILLS.map((k) => [k, 0]));
 /** Whatever skills a person has, with the rest at 0 (an old save, a short list). */
 export const fillSkills = (s = {}) => Object.fromEntries(SKILLS.map((k) => [k, Number.isFinite(s[k]) ? s[k] : 0]));
 export const totalPoints = (s) => SKILLS.reduce((n, k) => n + (s[k] || 0), 0);
+
+/**
+ * Team presets (Seven's team select: pick a kind of team, not a spreadsheet).
+ * Each is two skills; the five people take them in turn, two points each, so
+ * ten points in all: the first, third and fifth lean one way, the second and
+ * fourth the other. "Balanced" gives each person a different one of the five.
+ */
+export const TEAMS = Object.freeze([
+  { id: "clearers", title: "Clearers", skills: ["cut", "carry"], note: "Deadfalls come down faster" },
+  { id: "campers", title: "Campers", skills: ["build", "fire"], note: "Camp goes up fast, wood lasts" },
+  { id: "wardens", title: "Wardens", skills: ["watch", "fire"], note: "The night takes fewer" },
+  { id: "balanced", title: "Balanced", skills: SKILLS.slice(), detail: "one of each", note: "A little of everything" },
+]);
+export const DEFAULT_TEAM = "clearers";
+
+/** The five people's skills for a preset. */
+export function teamSkills(id, n = 5) {
+  const t = TEAMS.find((x) => x.id === id) || TEAMS[0];
+  return Array.from({ length: n }, (_, i) => ({ ...blankSkills(), [t.skills[i % t.skills.length]]: 2 }));
+}
+/** What each person is best at in a preset, for the roster line. */
+export const teamFocus = (id, i) => { const t = TEAMS.find((x) => x.id === id) || TEAMS[0]; return t.skills[i % t.skills.length]; };

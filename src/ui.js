@@ -8,7 +8,7 @@ import { clock, today, party, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite
 import { accountFor, askableDays, shownWood, shownFire } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
-import { SKILLS, SKILL_LABEL, SKILL_WHAT, blankSkills, totalPoints } from "./skills.js";
+import { SKILLS, SKILL_LABEL, SKILL_WHAT, TEAMS, DEFAULT_TEAM, teamSkills, teamFocus } from "./skills.js";
 
 const $ = (id) => document.getElementById(id);
 function h(tag, attrs = {}, ...kids) {
@@ -122,33 +122,28 @@ export function createUI(api) {
   }
 
   // ---------------------------------------------------------------- recruit
+  // Seven's team select: pick a KIND of team, one tap. The five people take its
+  // two skills in turn (skills.js TEAMS); no points to count.
   function recruit(names, onStart, onReroll) {
-    const POINTS = 10;
-    const team = names.map((name) => ({ name, skills: blankSkills() }));
-    const left = () => POINTS - team.reduce((s, m) => s + totalPoints(m.skills), 0);
-    const body = h("div");
+    let pick = api.settings().team || DEFAULT_TEAM;
+    if (!TEAMS.some((t) => t.id === pick)) pick = DEFAULT_TEAM;
+    const cards = h("div", { class: "teamcards" });
+    const roster = h("ul", { class: "roster" });
+    const note = h("p", { class: "small" });
     function paint() {
-      body.replaceChildren(
-        h("p", {}, `Five people walk in with you. Spend ${POINTS} points on what they are good at. Points left: `, h("b", { id: "pts" }, left())),
-        // what each skill is for, once, above the table (five will not fit under their headings)
-        h("dl", { class: "skillkey" }, SKILLS.flatMap((k) => [h("dt", {}, SKILL_LABEL[k]), h("dd", {}, SKILL_WHAT[k])])),
-        h("table", { class: "grid picks" },
-          h("tr", {}, h("th", {}, ""), ...SKILLS.map((k) => h("th", {}, SKILL_LABEL[k]))),
-          ...team.map((m, i) => h("tr", {},
-            h("td", { class: "name" }, m.name),
-            ...SKILLS.map((k) => h("td", { "data-label": SKILL_LABEL[k] },
-              btn("−", () => { if (m.skills[k] > 0) { m.skills[k]--; paint(); } }, "tiny"),
-              h("span", { class: "val", "data-k": k, "data-i": i }, m.skills[k]),
-              btn("+", () => { if (left() > 0 && m.skills[k] < 5) { m.skills[k]++; paint(); } }, "tiny"),
-            )),
-          )),
-        ),
-        h("p", { class: "small" }, "Anyone can do anything; skill only makes it go further or faster, and it grows with use. Spread the points and everyone is slow. Stack them and losing one person hurts."),
-      );
+      cards.replaceChildren(...TEAMS.map((t) => h("button", { class: "teamcard" + (t.id === pick ? " sel" : ""), "data-team": t.id, on: { click: () => { pick = t.id; const st = api.settings(); st.team = pick; api.applySettings(st); paint(); } } },
+        h("span", { class: "option-title" }, t.title),
+        h("span", { class: "option-detail" }, t.detail || t.skills.map((k) => SKILL_LABEL[k]).join(" · ")))));
+      const t = TEAMS.find((x) => x.id === pick);
+      note.textContent = t.note + ".";
+      roster.replaceChildren(...names.map((n, i) => h("li", {}, h("span", { class: "name" }, n), h("span", { class: "focus" }, SKILL_LABEL[teamFocus(pick, i)]))));
     }
     paint();
-    show("recruit", h("h2", {}, "Who walks in"), body,
-      h("div", { class: "row" }, btn("Other names", onReroll), btn("Back", api.toTitle), btn("Walk in", () => onStart(team), "primary")));
+    show("recruit", h("h2", {}, "Who walks in"),
+      h("label", { class: "field-label" }, "Team"), cards, note, roster,
+      h("p", { class: "small" }, "Anyone can do anything. A skill makes it go further or faster, and grows with use."),
+      h("div", { class: "row" }, btn("Other names", onReroll), btn("Back", api.toTitle),
+        btn("Walk in", () => onStart(names.map((name, i) => ({ name, skills: teamSkills(pick)[i] }))), "primary")));
     onCancel = api.toTitle;
   }
 

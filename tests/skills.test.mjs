@@ -24,11 +24,19 @@ t("every skill is used by a task or by the watch, and every task names a real sk
   for (const k of used) assert.ok(SKILLS.includes(k), k + " is not a skill");
 });
 
-t("the recruit and plan screens are built from the one list", () => {
-  const ui = read("src/ui.js");
-  assert.ok(ui.includes("SKILL_WHAT[k]") && ui.includes("SKILLS.flatMap"), "the recruit screen does not list what each skill does");
-  assert.ok(!/const SKILLS = \[/.test(ui), "ui.js keeps its own list of skills");
-  assert.ok(ui.includes("blankSkills()"), "recruits start from the shared list");
+t("team presets: ten points over five people, only real skills, and every skill is on offer", async () => {
+  const { TEAMS, teamSkills } = await import("../src/skills.js");
+  assert.ok(TEAMS.length >= 3);
+  const offered = new Set();
+  for (const team of TEAMS) {
+    const people = teamSkills(team.id);
+    assert.equal(people.length, 5);
+    assert.equal(people.reduce((n, p) => n + totalPoints(p), 0), 10, team.id);
+    for (const p of people) assert.deepEqual(Object.keys(p).sort(), [...SKILLS].sort());
+    for (const k of team.skills) { assert.ok(SKILLS.includes(k)); offered.add(k); }
+    assert.ok(team.note && team.title);
+  }
+  for (const k of SKILLS) assert.ok(offered.has(k), k + " is on no team");
 });
 
 t("everyone starts with all of them, and a fake is better at every one", () => {
