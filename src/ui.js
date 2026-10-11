@@ -162,7 +162,7 @@ export function createUI(api) {
   function dawnPlan(sim, onDone) {
     const choice = {};
     const allowed = tasksNow(sim);
-    const taskText = (t) => TASK_LABEL[t] + (TASK_SKILL[t] ? `  ·  ${SKILL_LABEL[TASK_SKILL[t]]}` : "  ·  helps you");
+    const taskText = (t) => TASK_LABEL[t] + (TASK_SKILL[t] ? `  ·  ${SKILL_LABEL[TASK_SKILL[t]]}` : t === "auto" ? "  ·  whatever is needed" : "  ·  helps you");
     const rows = party(sim).map((m) => {
       choice[m.id] = allowed.includes(m.task) ? m.task : "follow";      // yesterday's work, unless you change it
       const skillCells = SKILLS.map((k) => h("span", { class: "sk", "data-k": k, title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])));
@@ -185,7 +185,8 @@ export function createUI(api) {
       call,
       h("table", { class: "grid" }, rows),
       h("p", { class: "small" }, "On the deadfall (Cutting): they cut until their shift ends. Gathering wood (Carrying): they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
-        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Carrying): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing."),
+        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Carrying): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing. " +
+        "Using their judgement: each hour they do what the team needs most that they are good for (make camp, keep the pile up, cut, keep the fire), and spread out."),
       h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
     );
   }

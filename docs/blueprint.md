@@ -48,6 +48,9 @@ different game. SEVIN has one game, so each module has one job.
 - **Evenings.** From dusk everyone not with you comes in to the fire, lights it
   if there is wood, keeps it going and waits up for you. Awake after dark wears
   like night. The night is planned when you get back.
+- **Using their judgement** (auto): each hour they score what the team needs
+  (no camp, a low pile, a deadfall, the fire at evening) weighted by their own
+  skills, take the top one, and spread out.
 - **Keeping camp** (a task): stay at camp, bring in deadwood, keep the fire.
 - **Tasks keep through the night.** After their shift (or dusk) nobody leaves
   the fire to work it, and a whistle from the dark does not pull them out; at
@@ -60,7 +63,13 @@ different game. SEVIN has one game, so each module has one job.
 - **Night.** Exposure-weighted: outside camp, no fire, deep, alone is worst.
   One real member at most is taken a night. A fake takes the slot with the same
   name and slightly better skills. Nobody is told.
-- **Whistles.** Everyone whistles their own way (`voice.js`). A fake whistles
+- **Whistles.** Every whistle is made of its moment (`voice.js` `phrase`): the
+  hour and minute, the distance, time played, how many whistles so far. The
+  moment sets tempo, ornament (grace, trill, repeat, echo, hold), held notes
+  across a distance, softness after dark. The person sets register and shape.
+  Your own wanders further; nobody needs to recognise it. Heard out to 25 m.
+  Never made from the hidden meter.
+- **Voices.** Everyone whistles their own way (`voice.js`). A fake whistles
   the one it replaced with exactly one audible thing slightly off: a semitone,
   a narrower jump, a different pace. Derived, like the accounts.
 - **The call.** At first light, a voice from a bearing (8 directions). False
@@ -105,6 +114,8 @@ different game. SEVIN has one game, so each module has one job.
 | night take chance | 0.10 + 0.07/area + 0.25 cold or rough + 0.08/fake held + 0.25 x lost mind | `night.js` |
 | pylon shield | 36 h | `PYLON_HOURS` |
 | ask | 0.5 h | `ASK_HOURS` |
+| daylight | full 07:00-16:30, sets to dark by dusk (18:00), first light at dawn (06:00) | `daylight` |
+| whistle range | 25 m | `HEAR` |
 
 None of these has met a human player. Brain T11: automated 3D verification
 checks logic, not whether it reads or whether it is fun.

@@ -204,7 +204,7 @@ t("the further off, the longer before they set out", () => {
   const [a, b] = S.party(sim);
   a.task = b.task = "camp";
   a.x = sim.player.x + 3; a.y = sim.player.y;
-  b.x = sim.player.x + 40; b.y = sim.player.y;
+  b.x = sim.player.x + 22; b.y = sim.player.y;
   S.whistle(sim);
   assert.ok(b.answerAt - sim.time > a.answerAt - sim.time + 0.05);
 });
@@ -465,4 +465,33 @@ t("no camp at dusk: they spend the night with you and keep their task", () => {
   sleep(sim);
   assert.ok(!a.called);
   assert.equal(a.task, "chop");
+});
+
+t("it is dark when the game says night, and light when it says day", () => {
+  for (let h = 0; h < 24; h += 0.25) {
+    const t = 24 + h, d = S.daylight(t);
+    if (S.isNight(t) && S.hourOf(t) >= S.DUSK + 0.25) assert.equal(d, 0, `light at ${h}:00 in the night`);
+    if (S.isNight(t)) assert.ok(d <= 0.1, `${d} light at ${h} though it is night`);
+    if (h >= 7 && h <= 16) assert.equal(d, 1, `dim at ${h} in the day`);
+  }
+  assert.ok(S.daylight(24 + 17) < 0.8 && S.daylight(24 + 17) > 0.2, "no sunset before dusk");
+});
+
+t("using their judgement: they make camp when there is none, keep the pile up, cut, and spread out", () => {
+  const sim = S.createRun({ seed: 7 });
+  const all = S.party(sim);
+  S.setDawnPlan(sim, Object.fromEntries(all.map((m) => [m.id, "auto"])));
+  for (let i = 0; i < 30; i++) S.tick(sim, 0.1, {});
+  assert.ok(all.some((m) => S.effTask(m) === "pitch"), "nobody made camp");
+  assert.ok(sim.pitch, "no camp is going up");
+  const picks = new Set(all.map((m) => S.effTask(m)));
+  assert.ok(picks.size >= 2, "they all did the same thing: " + [...picks]);
+  for (let i = 0; i < 20000 && !sim.camp.up; i++) S.tick(sim, 0.1, {});
+  assert.ok(sim.camp.up, "camp never went up");
+  sim.camp.pile = 0;
+  for (let i = 0; i < 400; i++) S.tick(sim, 0.1, {});
+  assert.ok(all.some((m) => S.effTask(m) === "gather"), "an empty pile and nobody gathering");
+  assert.ok(all.every((m) => m.task === "auto"), "auto was overwritten");
+  const s = S.autoScores(sim, all[0]);
+  assert.ok("chop" in s && "camp" in s && "gather" in s);
 });

@@ -20,13 +20,13 @@ export const WORK_SPEED = 8;         // time runs this much faster while you wor
 export const DAWN = 6, DUSK = 18;
 export const CAMP_R = 12;            // metres: the campsite, and the fire's shield
 export const REACH = 3;              // metres: hands' reach
-export const HEAR = 50;              // metres: how far a whistle carries
+export const HEAR = 25;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
-export const TASKS = ["follow", "chop", "gather", "camp", "pitch"];
+export const TASKS = ["auto", "follow", "chop", "gather", "camp", "pitch"];
 // Which skill a task leans on (the one that makes it go faster or further).
 // "with you" lends a hand to whatever YOU are doing, so it has none of its own.
-export const TASK_SKILL = { chop: "cut", gather: "carry", pitch: "carry", camp: "fire", follow: null };
-export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp" };
+export const TASK_SKILL = { chop: "cut", gather: "carry", pitch: "carry", camp: "fire", follow: null, auto: null };
+export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.
 export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp"));
@@ -79,7 +79,8 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     seenKeys: {},
     call: null,                               // the dawn call, if any
     lastFollowCall: -1,
-    stats: { asked: 0, tested: 0, rescued: 0 },
+    stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
+    startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
     msgs: [], events: [],
   };
@@ -127,6 +128,19 @@ export function draw(sim) {
 export const dayOf = (t) => Math.floor((t - DAWN) / 24) + 1;
 export const hourOf = (t) => ((t % 24) + 24) % 24;
 export const isNight = (t) => hourOf(t) >= DUSK || hourOf(t) < DAWN;
+/**
+ * How light it is, 0..1, on the SAME clock as isNight: the sun goes down
+ * through the last hour and a half before dusk and is gone by dusk; it comes
+ * up through the first hour after dawn. The screen and the rules never disagree
+ * about whether it is night.
+ */
+export function daylight(t) {
+  const h = hourOf(t);
+  if (h >= DUSK || h < DAWN) return h >= DUSK && h < DUSK + 0.25 ? 0.08 * (1 - (h - DUSK) / 0.25) : 0;
+  if (h < DAWN + 1) return Math.max(0.08, h - DAWN);         // first light at dawn, full by seven
+  if (h > DUSK - 1.5) return Math.max(0.08, (DUSK - h) / 1.5);
+  return 1;
+}
 export const clock = (t) => {
   const h = hourOf(t);
   return String(Math.floor(h)).padStart(2, "0") + ":" + String(Math.floor((h % 1) * 60)).padStart(2, "0");
@@ -306,14 +320,14 @@ function tickMember(sim, m, dt, hours) {
     m.answerAt = null;
     // with you for the rest of the day; their task waits for the morning
     m.called = true; m.state = "idle"; m.site = null;
-    sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y, voice: m.voice });
+    sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y, voice: m.voice, ctx: whistleCtx(sim, m) });
   }
   const hr = hourOf(sim.time);
   const lateDay = hr >= DUSK - 1.5 || hr < DAWN;   // a shift that no longer fits is not started
 
   // A shift ends at dusk: everyone with a field task walks home. With no
   // camp to walk home to, they come back to you.
-  if (lateDay && !m.called && (m.task === "chop" || m.task === "gather")) {
+  if (lateDay && !m.called && (effTask(m) === "chop" || effTask(m) === "gather")) {
     // sent home once; someone already at camp is home
     if (sim.camp.up) { if (m.state !== "home" && dist(m, sim.camp) > 5) { m.state = "home"; m.goal = { x: sim.camp.x, y: sim.camp.y }; } }
     else { m.called = true; m.state = "idle"; }       // no camp: tonight they stay with you
@@ -348,7 +362,8 @@ function tickMember(sim, m, dt, hours) {
 
   // Called to you (a whistle, or no camp to go back to): with you until
   // morning, when they go back to the task they were set.
-  switch (m.called ? "follow" : m.task) {
+  if (m.task === "auto") autoPick(sim, m);
+  switch (m.called ? "follow" : effTask(m)) {
     case "follow": {
       const near = 2.2 + (m.slot % 3) * 0.9;
       const d = dist(m, p);
@@ -364,7 +379,7 @@ function tickMember(sim, m, dt, hours) {
       // a bounded task: THIS deadfall. When it is through, they go back to camp.
       if (m.chopId == null) m.chopId = currentDeadfall(sim);
       const i = m.chopId;
-      if (i < 0 || sim.deadfalls[i].done >= 1) { m.task = "camp"; m.chopId = null; m.state = "idle"; break; }
+      if (i < 0 || sim.deadfalls[i].done >= 1) { taskDone(m, "camp"); m.chopId = null; m.state = "idle"; break; }
       const df = sim.world.deadfalls[i];
       const spot = { x: df.x + ((m.slot % 3) - 1) * 1.6, y: df.y - 2.2 };
       if (!reachable(sim, m, spot)) { m.called = true; break; }
@@ -377,7 +392,7 @@ function tickMember(sim, m, dt, hours) {
     case "gather": {
       if (m.state !== "gather" && m.state !== "carry") { m.state = "gather"; m.site = woodSite(sim, m); m.stateT = 0; }
       const site = m.site;
-      if (!site) { m.task = "camp"; break; }
+      if (!site) { taskDone(m, "camp"); break; }
       if (m.state === "gather") {
         if (steer(sim, m, site.x, site.y, speedOf(m), dt, site.r * 0.6)) {
           // chopping deadwood, at the world's pace; one chop, then home with it
@@ -410,7 +425,7 @@ function tickMember(sim, m, dt, hours) {
       // Making camp where the plan said. Everyone on it carries some of the
       // kit; more hands, sooner up.
       const P = sim.pitch;
-      if (!P || sim.camp.up) { m.task = sim.camp.up ? "camp" : "follow"; break; }
+      if (!P || sim.camp.up) { taskDone(m, sim.camp.up ? "camp" : "follow"); break; }
       const spot = { x: P.x + Math.cos(m.slot * 1.3) * 2.5, y: P.y + Math.sin(m.slot * 1.3) * 2.5 };
       if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.8)) {
         m.workT = sim.time;
@@ -733,14 +748,35 @@ export function strikeCamp(sim) {
 export function atFireTonight(sim, m) {
   const hr = hourOf(sim.time);
   // a field shift ends early so they are home by dark; once home, they stay
-  const from = m.task === "chop" || m.task === "gather" ? DUSK - 1.5 : DUSK - 0.25;
-  return (hr >= from || hr < DAWN) && sim.camp.up && m.task !== "follow" && !m.called && m.task !== "pitch";
+  const t = effTask(m);
+  const from = t === "chop" || t === "gather" ? DUSK - 1.5 : DUSK - 0.25;
+  return (hr >= from || hr < DAWN) && sim.camp.up && t !== "follow" && !m.called && t !== "pitch";
+}
+
+/**
+ * The moment a whistle is made in: the hour and minute, how far the whistler
+ * is from you and from camp, how long this walk has gone on, how many
+ * whistles so far. voice.js turns it into this one whistle's phrasing.
+ * Never the hidden meter: a whistle must not give a mind away.
+ */
+export function whistleCtx(sim, m) {
+  const who = m || sim.player;
+  const h = hourOf(sim.time);
+  return {
+    hour: Math.floor(h), minute: Math.floor((h % 1) * 60),
+    dist: m ? Math.round(dist(m, sim.player)) : 0,
+    campDist: sim.camp.up ? Math.round(dist(who, sim.camp)) : -1,
+    played: Math.floor((sim.time - (sim.startTime ?? DAWN + 1)) * 60),
+    n: sim.stats.whistles || 0,
+    slot: m ? m.slot : "you",
+  };
 }
 
 export function busy(sim, m) {
   if (m.called) return false;
-  if (m.task === "gather") return true;
-  if (m.task === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
+  const t = effTask(m);
+  if (t === "gather") return true;
+  if (t === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
   return m.state === "home" && m.load > 0;
 }
 
@@ -758,10 +794,11 @@ export function whistle(sim) {
     // at night the fire holds them: a whistle from the dark does not
     if (busy(sim, m) || atFireTonight(sim, m) || m.sanity < 0.25) continue;
     const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
-    m.answerAt = sim.time + 0.04 + d * 0.0025 + jitter * 0.03;   // ~1-4 s
+    m.answerAt = sim.time + 0.04 + d * 0.005 + jitter * 0.03;    // ~1-4 s
     heard.push(m.id);
   }
-  sim.events.push({ kind: "whistle" });
+  sim.stats.whistles = (sim.stats.whistles || 0) + 1;
+  sim.events.push({ kind: "whistle", ctx: whistleCtx(sim, null) });
   return heard;
 }
 // The two-hands rule. The nearest companion is the second pair. A fake cannot
@@ -882,14 +919,59 @@ export function askMember(sim, id, day) {
 // ---------------------------------------------------------------------------
 
 /** Where the team would make camp: the nearest clearing you can walk to. */
-export function pitchSite(sim) {
+export function pitchSite(sim, from = sim.player) {
   let best = null, bd = Infinity;
   for (const c of sim.world.clearings) {
-    if (!reachable(sim, sim.player, c)) continue;
-    const d = dist(c, sim.player);
+    if (!reachable(sim, from, c)) continue;
+    const d = dist(c, from);
     if (d < bd) { bd = d; best = c; }
   }
   return best;
+}
+
+// ---------------------------------------------------------------------------
+// Using their judgement
+// ---------------------------------------------------------------------------
+
+/** What a person on "auto" is doing right now. */
+export const effTask = (m) => (m.task === "auto" ? m.autoTask || "camp" : m.task);
+
+/** A task ran out: back to camp, or for someone on auto, a fresh look. */
+function taskDone(m, next) {
+  if (m.task === "auto") { m.autoTask = null; m.autoUntil = 0; } else m.task = next;
+}
+
+/**
+ * Each hour, someone using their judgement scores what the team needs and
+ * takes the most needed thing they are good for (Brain: utility scoring,
+ * keep what an input MEANS apart from how much it matters). They spread out:
+ * the more already on a thing, the less it calls. Mid-load, they finish.
+ */
+export function autoScores(sim, m) {
+  const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
+  const s = {};
+  if (!sim.camp.up) s.pitch = 10 + m.skills.carry * 0.5 - others("pitch") * 3;
+  if (sim.camp.up || sim.pitch) s.gather = (sim.camp.up ? Math.max(0, 7 - sim.camp.pile) : 3) + m.skills.carry * 0.5 - others("gather") * 1.5;
+  const i = currentDeadfall(sim);
+  if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
+  if (sim.camp.up) s.camp = 1.5 + m.skills.fire * 0.5 + (hourOf(sim.time) >= DUSK - 3 ? 3 : 0) - others("camp") * 2;
+  return s;
+}
+function autoPick(sim, m) {
+  if (m.autoTask && sim.time < (m.autoUntil || 0)) return;
+  if (m.load > 0 || m.state === "carry" || m.state === "home") return;     // finish the load first
+  const s = autoScores(sim, m);
+  let best = "camp", bs = -Infinity;
+  for (const [t, v] of Object.entries(s)) if (v > bs) { bs = v; best = t; }
+  if (best !== m.autoTask) { m.state = "idle"; m.site = null; m.chopId = null; }
+  m.autoTask = best;
+  m.autoUntil = sim.time + 1;
+  // nobody has the camp in hand yet: they take the kit to the nearest clearing
+  if (best === "pitch" && !sim.pitch) {
+    const c = pitchSite(sim, m) || { x: m.x, y: m.y, kind: "trail" };
+    sim.pitch = { x: c.x, y: c.y, left: PITCH_HOURS, place: c.kind, hands: [] };
+    sim.player.carryingKit = false;
+  }
 }
 
 function pitchDone(sim) {
@@ -992,8 +1074,9 @@ export function tick(sim, dt, input = {}) {
 
 
   // dusk: at camp, the night needs a plan
+  if (!sim.tutorial && hourOf(sim.time) >= DUSK - 1.5 && hourOf(before) < DUSK - 1.5) say(sim, "The light is going.", "warn");
   if (!sim.tutorial && hourOf(sim.time) >= DUSK && hourOf(before) < DUSK) {
-    say(sim, "The light is going.", "warn");
+    say(sim, "It is dark.", "warn");
     sim.events.push({ kind: "dusk" });
   }
   if (!sim.tutorial && isNight(sim.time) && sim.camp.up && atCamp(sim, p) && sim.plan.duskDone !== today(sim) && !sim.work) {

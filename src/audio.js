@@ -3,7 +3,7 @@
 // pressed something, so `unlock` is called from the first input.
 
 import { isNight } from "./sim.js";
-import { notes, PLAYER_VOICE } from "./voice.js";
+import { notes, phrase, PLAYER_VOICE } from "./voice.js";
 
 export function createAudio() {
   let ctx = null, master = null, noise = null;
@@ -69,9 +69,9 @@ export function createAudio() {
     for (const [d, f] of [[0, 330], [0.55, 262], [2.2, 330], [2.75, 262]]) tone(f, 0.5, 0.18, pan, -30, "triangle", d);
   }
 
-  // A whistle: the notes of one person's voice (voice.js).
-  function whistleTone(pan, gain, voice) {
-    for (const n of notes(voice)) tone(n.freq, n.dur, gain, pan, n.slide, "sine", n.at);
+  // A whistle: one phrase (voice.js), each note with its own loudness.
+  function whistleTone(pan, gain, notesList) {
+    for (const n of notesList) tone(n.freq, n.dur, gain * (n.gain ?? 1), pan, n.slide, "sine", n.at);
   }
 
   function event(e, sim) {
@@ -84,12 +84,12 @@ export function createAudio() {
       case "pylonLit": tone(523, 1.4, 0.25); tone(784, 1.6, 0.18, 0, 0, "sine", 0.15); break;
       case "unmade": tone(196, 2.2, 0.3, 0, -60, "sawtooth"); break;
       case "sentHome": tone(659, 1.2, 0.2); tone(988, 1.4, 0.15, 0, 0, "sine", 0.2); break;
-      case "whistle": whistleTone(0, 0.22, PLAYER_VOICE); break;
+      case "whistle": whistleTone(0, 0.22, e.ctx ? phrase(PLAYER_VOICE, e.ctx, true) : notes(PLAYER_VOICE)); break;
       case "answer": {
         // their whistle back: from where they are, fainter with distance
         const dx = e.x - sim.player.x, dy = e.y - sim.player.y, d = Math.hypot(dx, dy);
         const a = Math.atan2(dx, dy) - sim.player.yaw;
-        whistleTone(Math.max(-1, Math.min(1, Math.sin(a))), Math.max(0.04, 0.16 * (1 - d / 60)), e.voice || PLAYER_VOICE);
+        whistleTone(Math.max(-1, Math.min(1, Math.sin(a))), Math.max(0.04, 0.16 * (1 - d / 30)), e.ctx ? phrase(e.voice || PLAYER_VOICE, e.ctx) : notes(e.voice || PLAYER_VOICE));
         break;
       }
       case "dawn": if (sim.call) setTimeout(() => call(sim.call.bearing, sim.player.yaw), 600); break;

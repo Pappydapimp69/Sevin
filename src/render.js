@@ -2,7 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
-import { hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
+import { daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
@@ -221,11 +221,12 @@ export function createRenderer(canvas) {
     const weather = sim.weather[Math.floor((sim.time - 6) / 24) + 1] || "clear";
     const look = WEATHER_LOOK[weather] || WEATHER_LOOK.clear;
 
-    // daylight: 0 at night, 1 at noon
+    // daylight comes from the same clock as the night (sim.daylight), so it is
+    // dark when the game says night, never hours after
     const h = hourOf(sim.time);
-    const day = h < 5 || h > 20 ? 0 : h < 7 ? (h - 5) / 2 : h > 18 ? (20 - h) / 2 : 1;
+    const day = daylight(sim.time);
     const sky = new THREE.Color(look.sky).lerp(new THREE.Color(0x05070d), 1 - day);
-    if (h > 16.5 && h < 19.5) sky.lerp(new THREE.Color(0xd08050), 0.25 * Math.sin(((h - 16.5) / 3) * Math.PI));
+    if (h > 16.5 && h < 18.5) sky.lerp(new THREE.Color(0xd08050), 0.3 * Math.sin(((h - 16.5) / 2) * Math.PI));
     scene.background = sky;
     scene.fog.color = sky;
     scene.fog.far = 14 + (look.fog - 14) * (0.25 + 0.75 * day);
