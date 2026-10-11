@@ -51,6 +51,9 @@ different game. SEVIN has one game, so each module has one job.
 - **Night.** Exposure-weighted: outside camp, no fire, deep, alone is worst.
   One real member at most is taken a night. A fake takes the slot with the same
   name and slightly better skills. Nobody is told.
+- **Whistles.** Everyone whistles their own way (`voice.js`). A fake whistles
+  the one it replaced with exactly one audible thing slightly off: a semitone,
+  a narrower jump, a different pace. Derived, like the accounts.
 - **The call.** At first light, a voice from a bearing (8 directions). False
   calls also happen, so a call is not an announcement; a bearing that holds
   across dawns is the tell. It fades with nights out, with a floor, and stops
@@ -81,7 +84,9 @@ different game. SEVIN has one game, so each module has one job.
 | what | value | where |
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
-| deadfall | 22 person-hours, cut skill +18%/level | `world.js`, `chopRate` |
+| deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
+| hands (pick up, light, feed, pylon, rescue) | 3 s, moving lets go | `ACT_SECONDS` |
+| first camp | none: you arrive with the kit; making camp 2 person-hours | `PITCH_HOURS` |
 | drain | 0.0045/h x depth (1 + 0.6/area) x night | `DRAIN` |
 | night take chance | 0.10 + 0.07/area + 0.25 cold or rough + 0.08/fake held + 0.25 x lost mind | `night.js` |
 | pylon shield | 36 h | `PYLON_HOURS` |

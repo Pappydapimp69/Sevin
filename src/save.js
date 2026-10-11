@@ -2,6 +2,7 @@
 // because GitHub Pages serves every project of an account from one origin.
 
 import { SAVE_VERSION, attach, snapshot } from "./sim.js";
+import { makeVoice, bendVoice } from "./voice.js";
 
 const RUN = "sevin:run", RUNS = "sevin:runs", SETTINGS = "sevin:settings";
 
@@ -21,6 +22,13 @@ export function loadRun() {
     const sim = JSON.parse(raw);
     if (sim.v !== SAVE_VERSION) return null;
     sim.msgs = []; sim.events = [];
+    // saves from before whistles: give everyone theirs, a fake its bent copy
+    for (const ms of sim.missing) ms.voice ||= makeVoice(sim.seed, ms.slot, ms.id);
+    for (const m of sim.members) {
+      if (m.voice) continue;
+      const real = sim.members.find((o) => !o.fake && o.slot === m.slot && o !== m) || sim.missing.find((o) => o.slot === m.slot);
+      m.voice = m.fake ? bendVoice(real?.voice || makeVoice(sim.seed, m.slot, m.id), sim.seed, m.id) : makeVoice(sim.seed, m.slot, m.id);
+    }
     return attach(sim);
   } catch { return null; }
 }

@@ -12,6 +12,7 @@ import { makeRng, hash, stream } from "./rng.js";
 import { makeRoster } from "./names.js";
 import { generateWorld, tutorialWorld, CELL, AREA_H, toCell, center, open, placeName } from "./world.js";
 import { record, WEATHERS } from "./chronicle.js";
+import { makeVoice } from "./voice.js";
 
 export const SAVE_VERSION = 1;
 export const SEC_PER_HOUR = 20;      // real seconds per game hour
@@ -21,8 +22,12 @@ export const CAMP_R = 12;            // metres: the campsite, and the fire's shi
 export const REACH = 3;              // metres: hands' reach
 export const HEAR = 50;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
-export const TASKS = ["follow", "chop", "gather", "camp"];
-export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "at camp" };
+export const TASKS = ["follow", "chop", "gather", "camp", "pitch"];
+export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "at camp", pitch: "making camp" };
+// What can be set this morning: no camp, nobody can stay at it; a camp up,
+// nobody needs to make one.
+export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp"));
+export const PITCH_HOURS = 2;
 
 // ---------------------------------------------------------------------------
 // Construction
@@ -32,7 +37,11 @@ export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather:
  * A new run. `party` is [{name, skills:{cut,carry,fire}}] from recruitment, or
  * omitted to compose one from the seed.
  */
-export function createRun({ seed, party = null, tutorial = false }) {
+/**
+ * `camp`: start with the camp already up (the training ground does; tests may).
+ * A real walk starts with none: you arrive carrying the kit.
+ */
+export function createRun({ seed, party = null, tutorial = false, camp: campUp = tutorial }) {
   const world = tutorial ? tutorialWorld() : generateWorld(seed);
   const rng = makeRng(hash("run", seed));
   const r = () => rng.next();
@@ -49,7 +58,8 @@ export function createRun({ seed, party = null, tutorial = false }) {
     members: [],
     missing: [],
     nextId: 1,
-    camp: { up: true, x: camp.x, y: camp.y, pile: tutorial ? 0 : 3, fire: 0, lit: false },
+    camp: { up: campUp, x: camp.x, y: camp.y, pile: campUp && !tutorial ? 3 : 0, fire: 0, lit: false },
+    pitch: null,                              // {x, y, left, place} while the team makes camp
     deadfalls: world.deadfalls.map(() => ({ done: 0 })),
     sticks: world.sticks.map(() => false),
     pylons: world.pylons.map(() => ({ spent: false, litAt: null })),
@@ -69,13 +79,18 @@ export function createRun({ seed, party = null, tutorial = false }) {
     sim.members.push(newMember(sim, p.name, i, { ...p.skills }, false, camp.x + Math.cos(i * 1.25) * 4, camp.y + Math.sin(i * 1.25) * 4));
   });
   for (const m of sim.members) m.task = "follow";
+  if (!campUp) {
+    sim.player.carryingKit = true;
+    sim.plan.pending = "dawn";              // you set the first day's work as you arrive
+  }
   attach(sim, world);
   return sim;
 }
 
 function newMember(sim, name, slot, skills, fake, x, y) {
+  const id = sim.nextId++;
   return {
-    id: sim.nextId++, name, slot, fake, skills, sanity: 1,
+    id, name, slot, fake, skills, sanity: 1, voice: makeVoice(sim.seed, slot, id),
     x, y, task: "camp", state: "idle", stateT: 0, load: 0, worked: 0,
     goal: null, home: false, gone: false, quiet: 0, trainee: false,
   };
@@ -281,14 +296,16 @@ function tickMember(sim, m, dt, hours) {
   if (m.answerAt != null && sim.time >= m.answerAt) {
     m.answerAt = null;
     m.task = "follow"; m.state = "idle"; m.site = null; m.chopId = null;
-    sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y });
+    sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y, voice: m.voice });
   }
   const hr = hourOf(sim.time);
   const lateDay = hr >= DUSK - 1.5 || hr < DAWN;   // a shift that no longer fits is not started
 
-  // A shift ends at dusk: everyone with a field task walks home.
-  if (lateDay && (m.task === "chop" || m.task === "gather") && sim.camp.up) {
-    m.state = "home"; m.goal = { x: sim.camp.x + (m.slot - 2) * 1.5, y: sim.camp.y - 2 };
+  // A shift ends at dusk: everyone with a field task walks home. With no
+  // camp to walk home to, they come back to you.
+  if (lateDay && (m.task === "chop" || m.task === "gather")) {
+    if (sim.camp.up) { m.state = "home"; m.goal = { x: sim.camp.x + (m.slot - 2) * 1.5, y: sim.camp.y - 2 }; }
+    else { m.task = "follow"; m.state = "idle"; }
   }
 
   if (m.state === "home") {
@@ -345,11 +362,31 @@ function tickMember(sim, m, dt, hours) {
             m.state = "carry";
           }
         }
-      } else if (steer(sim, m, sim.camp.x, sim.camp.y, speedOf(m), dt, 3)) {
-        sim.camp.pile += m.load;
-        note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from.x, y: m.from.y });
-        m.load = 0;
-        m.state = "gather";
+      } else {
+        // Wood goes to the pile. No camp yet: to where it is being made, or
+        // to you, and it waits in their arms until there is a pile.
+        const to = sim.camp.up ? sim.camp : sim.pitch || sim.player;
+        if (steer(sim, m, to.x, to.y, speedOf(m), dt, 3)) {
+          if (sim.camp.up) sim.camp.pile += m.load;
+          else if (to === sim.player) sim.player.wood += m.load;
+          else break;                              // holding it at the site
+          note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from.x, y: m.from.y });
+          m.load = 0;
+          m.state = "gather";
+        }
+      }
+      break;
+    }
+    case "pitch": {
+      // Making camp where the plan said. Everyone on it carries some of the
+      // kit; more hands, sooner up.
+      const P = sim.pitch;
+      if (!P || sim.camp.up) { m.task = sim.camp.up ? "camp" : "follow"; break; }
+      const spot = { x: P.x + Math.cos(m.slot * 1.3) * 2.5, y: P.y + Math.sin(m.slot * 1.3) * 2.5 };
+      if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.8)) {
+        P.left -= hours * (1 + 0.1 * m.skills.carry);
+        if (!P.hands.includes(m.id)) P.hands.push(m.id);
+        if (P.left <= 0) pitchDone(sim);
       }
       break;
     }
@@ -407,9 +444,17 @@ function helpWork(sim, m, hours) {
   }
 }
 
-function tickWork(sim, hours) {
+function tickWork(sim, hours, dt) {
   const w = sim.work;
   if (!w) return;
+  if (w.kind === "act") {
+    // hands on a thing for a few seconds; it must still be there and in reach
+    w.t += dt;
+    const still = targetFor(sim, w.target.kind, w.target.id, w.tol);
+    if (!still) { sim.work = null; return; }
+    if (w.t >= w.need) { sim.work = null; act(sim, still, w.tol); }
+    return;
+  }
   if (w.kind === "chop") {
     const df = sim.world.deadfalls[w.id];
     if (dist(sim.player, df) > 4.5) { sim.work = null; return; }
@@ -509,6 +554,22 @@ export function targetFor(sim, kind, id, tolerance = 1) {
   return actionTargets(sim, tolerance).find((t) => t.kind === kind && t.id === id) || null;
 }
 
+/**
+ * The player's hands take time: picking up, lighting, feeding, a pylon, a
+ * person found. About three seconds standing still; moving lets go. Chopping
+ * is its own long work and starts at once.
+ */
+export const ACT_SECONDS = 3;
+export const ACT_VERB = { stick: "Picking up wood", light: "Lighting the fire", feed: "Feeding the fire", pylon: "Lighting the pylon", home: "Lighting a pylon home", rescue: "Helping them up" };
+export function begin(sim, target = null, tolerance = 1) {
+  if (sim.work?.kind === "act") return null;            // already at it
+  const t = target || resolveAction(sim, tolerance);
+  if (!t) return null;
+  if (t.kind === "chop") return act(sim, t, tolerance);
+  sim.work = { kind: "act", target: { kind: t.kind, id: t.id }, label: ACT_VERB[t.kind] || t.label, t: 0, need: ACT_SECONDS, tol: tolerance };
+  return { kind: "begin", of: t.kind };
+}
+
 export function act(sim, target = null, tolerance = 1) {
   const a = target || resolveAction(sim, tolerance);
   if (!a) return null;
@@ -564,6 +625,8 @@ export function canMakeCamp(sim) {
 }
 export function makeCamp(sim) {
   if (!canMakeCamp(sim)) return false;
+  // you are making it here: whoever was making it elsewhere stops
+  if (sim.pitch) { for (const m of party(sim)) if (m.task === "pitch") m.task = "follow"; sim.pitch = null; }
   sim.work = { kind: "make", left: 2, x: sim.player.x, y: sim.player.y, helpers: [] };
   return true;
 }
@@ -662,6 +725,7 @@ export function lightHome(sim) {
     say(sim, m.name + " goes home.", "good");
     sim.events.push({ kind: "sentHome", id: m.id });
   }
+  if (sim.home.lit >= total) say(sim, "That was the last pylon here. Press {camp} to walk out.");
   note(sim, { verb: "pylon", actor: "you", object: "pylon", cls: "pylon", x: fs.x, y: fs.y, withWhom: [m.id] });
   return { kind: "home", by: m.id };
 }
@@ -687,6 +751,7 @@ function rescue(sim, id) {
   ms.found = true;
   const m = newMember(sim, ms.name, ms.slot, { ...ms.skills }, false, ms.x, ms.y);
   m.id = ms.id; sim.nextId = Math.max(sim.nextId, ms.id + 1);
+  m.voice = ms.voice;                          // their own whistle, unbent
   m.sanity = Math.max(0.2, ms.sanity);
   m.task = "follow";
   // the original record entry is re-used: same id, the real one
@@ -721,9 +786,40 @@ export function askMember(sim, id, day) {
 // Plans: dawn sets the day, dusk sets the night
 // ---------------------------------------------------------------------------
 
+/** Where the team would make camp: the nearest clearing you can walk to. */
+export function pitchSite(sim) {
+  let best = null, bd = Infinity;
+  for (const c of sim.world.clearings) {
+    if (!reachable(sim, sim.player, c)) continue;
+    const d = dist(c, sim.player);
+    if (d < bd) { bd = d; best = c; }
+  }
+  return best;
+}
+
+function pitchDone(sim) {
+  const P = sim.pitch;
+  sim.pitch = null;
+  const carried = party(sim).filter((m) => m.task === "pitch" || m.task === "gather").reduce((s, m) => s + (m.state === "carry" && dist(m, P) < 6 ? m.load : 0), 0);
+  for (const m of party(sim)) if (m.state === "carry" && dist(m, P) < 6) { m.load = 0; m.state = "gather"; }
+  sim.camp = { up: true, x: P.x, y: P.y, pile: carried, fire: 0, lit: false };
+  sim.player.carryingKit = false;
+  const [first, ...rest] = P.hands;
+  note(sim, { verb: "pitched", actor: first, object: "camp", cls: "camp", x: P.x, y: P.y, withWhom: rest });
+  for (const m of party(sim)) if (m.task === "pitch") { m.task = "camp"; m.state = "idle"; }
+  say(sim, `Camp is up by the ${P.place}.`, "good");
+  sim.events.push({ kind: "pitched" });
+}
+
 export function setDawnPlan(sim, tasks) {
+  const allowed = tasksNow(sim);
+  if (Object.values(tasks).includes("pitch") && !sim.camp.up && !sim.pitch) {
+    const c = pitchSite(sim) || { x: sim.player.x, y: sim.player.y, kind: "trail" };
+    sim.pitch = { x: c.x, y: c.y, left: PITCH_HOURS, place: c.kind, hands: [] };
+    sim.player.carryingKit = false;          // they have the kit now
+  }
   for (const m of party(sim)) {
-    const t = tasks[m.id] || "follow";
+    const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "follow";
     m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null;
     note(sim, { verb: "assigned", actor: m.id, object: TASK_LABEL[t], cls: "task", x: sim.camp.x, y: sim.camp.y, key: "assigned:" + m.id });
   }
@@ -777,12 +873,12 @@ export function tick(sim, dt, input = {}) {
     if (canStand(sim, p.x, ny)) p.y = ny;
   }
 
-  const speed = sim.work ? WORK_SPEED : 1;
+  const speed = sim.work && sim.work.kind !== "act" ? WORK_SPEED : 1;
   const hours = (dt * speed) / SEC_PER_HOUR;
   const before = sim.time;
   sim.time += hours;
 
-  tickWork(sim, hours);
+  tickWork(sim, hours, dt);
   dropWood(sim);
   for (const m of party(sim)) tickMember(sim, m, dt * speed, hours);
 
@@ -794,8 +890,6 @@ export function tick(sim, dt, input = {}) {
 
   drain(sim, hours);
 
-  // the first morning: walking into camp is when the day gets planned
-  if (!sim.tutorial && sim.plan.dawnDay == null && sim.camp.up && atCamp(sim, p) && !isNight(sim.time) && !sim.work) sim.plan.pending = "dawn";
 
   // dusk: at camp, the night needs a plan
   if (!sim.tutorial && hourOf(sim.time) >= DUSK && hourOf(before) < DUSK) {

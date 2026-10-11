@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, TASKS, TASK_LABEL, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, TASKS, TASK_LABEL, tasksNow, pitchSite, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
@@ -154,20 +154,27 @@ export function createUI(api) {
   // ---------------------------------------------------------------- dawn plan
   function dawnPlan(sim, onDone) {
     const choice = {};
+    const allowed = tasksNow(sim);
     const rows = party(sim).map((m) => {
-      choice[m.id] = m.task === "camp" ? "follow" : m.task;
+      choice[m.id] = allowed.includes(m.task) && m.task !== "camp" ? m.task : "follow";
       const sel = h("select", { "data-id": m.id, on: { change: (e) => (choice[m.id] = e.target.value) } },
-        ...TASKS.map((t) => h("option", { value: t, selected: choice[m.id] === t }, TASK_LABEL[t])));
+        ...allowed.map((t) => h("option", { value: t, selected: choice[m.id] === t }, TASK_LABEL[t])));
       return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel),
         h("td", { class: "skills" }, SKILLS.map((k) => h("span", { class: "sk", title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])))));
     });
     const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[sim.call.bearing]}.`) : null;
     show("plan",
       h("h2", {}, `Dawn, day ${today(sim)}`),
-      h("p", {}, `Weather: ${sim.weather[today(sim)]}. The woodpile has ${sim.camp.pile}. Set the day's work. Out there you can only call people back to you.`),
+      h("p", {}, `Weather: ${sim.weather[today(sim)]}. ` + (sim.camp.up
+        ? `The woodpile has ${sim.camp.pile}. Set the day's work. Out there you can only whistle people back to you.`
+        : sim.pitch
+          ? `Camp is still going up by the ${sim.pitch.place}. Set the day's work.`
+          : `There is no camp yet. Somebody has to make one before dark, or everyone sleeps in the open. ` +
+            `Whoever you set to making camp takes the kit to the ${pitchSite(sim)?.kind || "nearest clearing"} and puts it up. Or put it up yourself (${glyph("camp", api.scheme())}), wherever you stand.`)),
       call,
       h("table", { class: "grid" }, rows),
-      h("p", { class: "small" }, "On the deadfall: they cut until dusk. Gathering: they bring loads back to the pile. At camp: they stay by the fire. With you: they follow and lend a hand."),
+      h("p", { class: "small" }, "On the deadfall: they cut until dusk. Gathering: they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
+        (sim.camp.up ? "At camp: they stay by the fire. " : "Making camp: more hands, sooner up. ") + "With you: they follow and lend a hand."),
       h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
     );
   }
@@ -227,7 +234,7 @@ export function createUI(api) {
     const items = [];
     if (sim.camp.up) {
       items.push(btn("Take the camp down (an hour)", () => { close(); v.strike(); }, v.canStrike() ? "" : "disabled"));
-      if (atCamp(sim, sim.player) && today(sim) && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
+      if (atCamp(sim, sim.player) && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
     } else {
       items.push(btn("Make camp here (two hours)", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
       if (!v.canMake()) items.push(h("p", { class: "small" }, "A camp needs open ground all round."));
@@ -389,6 +396,10 @@ function workText(w) {
     case "make": return "Making camp. Move to stop.";
     case "strike": return "Taking the camp down. Move to stop.";
     case "ask": return "Talking.";
+    case "act": {
+      const n = 12, f = Math.round(Math.min(1, w.t / w.need) * n);
+      return `${w.label}  ${"▮".repeat(f)}${"▯".repeat(n - f)}`;
+    }
     default: return "";
   }
 }

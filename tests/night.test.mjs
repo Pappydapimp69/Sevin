@@ -9,7 +9,7 @@ function toDusk(sim) {
   if (sim.plan.pending === "dusk") S.setDuskPlan(sim, {});
 }
 function nights(seed, n, careful = false) {
-  const sim = S.createRun({ seed });
+  const sim = S.createRun({ seed, camp: true });
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   for (let i = 0; i < n; i++) {
     toDusk(sim);

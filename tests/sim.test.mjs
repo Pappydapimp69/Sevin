@@ -12,7 +12,7 @@ t("anyone can chop; skill makes it faster, never zero", () => {
 });
 
 t("chopping alone clears a deadfall, and progress persists", () => {
-  const sim = S.createRun({ seed: 11 });
+  const sim = S.createRun({ seed: 11, camp: true });
   for (const m of sim.members) m.task = "camp";
   const df = sim.world.deadfalls[0];
   sim.player.x = df.x; sim.player.y = df.y - 2.5;
@@ -28,7 +28,7 @@ t("chopping alone clears a deadfall, and progress persists", () => {
 
 t("helpers make the deadfall go faster", () => {
   const time = (help) => {
-    const sim = S.createRun({ seed: 11 });
+    const sim = S.createRun({ seed: 11, camp: true });
     const df = sim.world.deadfalls[0];
     sim.player.x = df.x; sim.player.y = df.y - 2.5;
     for (const m of sim.members) { m.task = help ? "follow" : "camp"; if (help) { m.x = sim.player.x; m.y = sim.player.y - 1.5; } }
@@ -41,7 +41,7 @@ t("helpers make the deadfall go faster", () => {
 });
 
 t("the dawn plan sends people to work, and they come home at dusk", () => {
-  const sim = S.createRun({ seed: 5 });
+  const sim = S.createRun({ seed: 5, camp: true });
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   const [a, b] = S.party(sim);
   S.setDawnPlan(sim, { [a.id]: "chop", [b.id]: "gather" });
@@ -54,7 +54,7 @@ t("the dawn plan sends people to work, and they come home at dusk", () => {
 });
 
 t("camp comes down, is carried, goes up somewhere else", () => {
-  const sim = S.createRun({ seed: 5 });
+  const sim = S.createRun({ seed: 5, camp: true });
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   sim.camp.pile = 5;
   assert.ok(S.strikeCamp(sim));
@@ -71,7 +71,7 @@ t("camp comes down, is carried, goes up somewhere else", () => {
 });
 
 t("a pylon unmakes a fake and spares a real one, and is spent either way", () => {
-  const sim = S.createRun({ seed: 2 });
+  const sim = S.createRun({ seed: 2, camp: true });
   const py = sim.world.pylons[0];
   sim.player.x = py.x; sim.player.y = py.y - 1;
   const [a, ...rest] = S.party(sim);
@@ -87,7 +87,7 @@ t("a pylon unmakes a fake and spares a real one, and is spent either way", () =>
 });
 
 t("the far side has one more pylon than real people; every try spends one", () => {
-  const sim = S.createRun({ seed: 2 });
+  const sim = S.createRun({ seed: 2, camp: true });
   S.party(sim)[1].fake = true;
   sim.player.x = sim.world.farSide.x; sim.player.y = sim.world.farSide.y;
   const n = S.homeCount(sim);
@@ -103,7 +103,7 @@ t("the far side has one more pylon than real people; every try spends one", () =
 });
 
 t("save round trip resumes the same run", () => {
-  const sim = S.createRun({ seed: 9 });
+  const sim = S.createRun({ seed: 9, camp: true });
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   for (let i = 0; i < 200; i++) S.tick(sim, 0.1, {});
   const copy = S.attach(JSON.parse(S.snapshot(sim)));
@@ -147,12 +147,12 @@ t("only save.js touches localStorage", () => {
 });
 
 t("you can always ask about today, even before anything has happened", () => {
-  const sim = S.createRun({ seed: 4 });
+  const sim = S.createRun({ seed: 4, camp: true });
   assert.deepEqual(askableDays(sim), [1]);
 });
 
 t("the action is what you are looking at, not a fixed order", () => {
-  const sim = S.createRun({ seed: 3 });
+  const sim = S.createRun({ seed: 3, camp: true });
   const c = sim.camp;
   // stand between the fire (south) and a stick (north)
   sim.player.x = c.x; sim.player.y = c.y + 1.5;
@@ -167,7 +167,7 @@ t("the action is what you are looking at, not a fixed order", () => {
 });
 
 t("touch tolerance widens reach without changing what is there", () => {
-  const sim = S.createRun({ seed: 3 });
+  const sim = S.createRun({ seed: 3, camp: true });
   const k = sim.world.sticks.findIndex((st) => st.area === 0);
   const st = sim.world.sticks[k];
   sim.player.x = st.x; sim.player.y = st.y - 3; sim.player.yaw = 0;
@@ -176,7 +176,7 @@ t("touch tolerance widens reach without changing what is there", () => {
 });
 
 t("a whistle: idle people in earshot come, after a moment; busy and far ones do not", () => {
-  const sim = S.createRun({ seed: 6 });
+  const sim = S.createRun({ seed: 6, camp: true });
   sim.plan.dawnDay = 1;
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   const [idle, cutter, gatherer, far] = S.party(sim);
@@ -199,11 +199,90 @@ t("a whistle: idle people in earshot come, after a moment; busy and far ones do 
 });
 
 t("the further off, the longer before they set out", () => {
-  const sim = S.createRun({ seed: 6 });
+  const sim = S.createRun({ seed: 6, camp: true });
   const [a, b] = S.party(sim);
   a.task = b.task = "camp";
   a.x = sim.player.x + 3; a.y = sim.player.y;
   b.x = sim.player.x + 40; b.y = sim.player.y;
   S.whistle(sim);
   assert.ok(b.answerAt - sim.time > a.answerAt - sim.time + 0.05);
+});
+
+t("a walk starts with no camp, the kit in hand, and the day's plan open", () => {
+  const sim = S.createRun({ seed: 12 });
+  assert.equal(sim.camp.up, false);
+  assert.equal(sim.player.carryingKit, true);
+  assert.equal(sim.plan.pending, "dawn");
+  assert.ok(S.tasksNow(sim).includes("pitch") && !S.tasksNow(sim).includes("camp"));
+});
+
+t("set to making camp, they take the kit to the nearest clearing and put it up", () => {
+  const sim = S.createRun({ seed: 12 });
+  const [a, b, c] = S.party(sim);
+  const site = S.pitchSite(sim);
+  S.setDawnPlan(sim, { [a.id]: "pitch", [b.id]: "pitch", [c.id]: "gather" });
+  assert.ok(sim.pitch && !sim.camp.up);
+  assert.equal(sim.player.carryingKit, false);
+  const t0 = sim.time;
+  for (let i = 0; i < 4000 && !sim.camp.up; i++) S.tick(sim, 0.1, {});
+  assert.ok(sim.camp.up, "camp never went up");
+  assert.ok(sim.time - t0 > 0.6, "camp went up too fast: " + (sim.time - t0));
+  assert.equal(sim.camp.x, site.x); assert.equal(sim.camp.y, site.y);
+  const f = sim.chron[1].facts.find((x) => x.verb === "pitched");
+  assert.ok(f && [a.id, b.id].includes(f.actor), "nobody is on record for pitching it");
+  assert.equal(a.task, "camp");
+});
+
+t("no camp: a gatherer brings the wood to you", () => {
+  const sim = S.createRun({ seed: 12 });
+  const [a] = S.party(sim);
+  S.setDawnPlan(sim, { [a.id]: "gather" });
+  for (let i = 0; i < 4000 && sim.player.wood === 0; i++) S.tick(sim, 0.1, {});
+  assert.ok(sim.player.wood > 0);
+});
+
+t("making camp yourself stops the team making one elsewhere", () => {
+  const sim = S.createRun({ seed: 12 });
+  const [a] = S.party(sim);
+  S.setDawnPlan(sim, { [a.id]: "pitch" });
+  sim.player.x = sim.world.start.x; sim.player.y = sim.world.start.y + 4;
+  assert.ok(S.makeCamp(sim));
+  assert.equal(sim.pitch, null);
+  assert.equal(a.task, "follow");
+});
+
+t("hands take about three seconds; moving lets go", () => {
+  const sim = S.createRun({ seed: 3, camp: true });
+  sim.plan.dawnDay = 1;
+  const k = sim.world.sticks.findIndex((st) => st.area === 0);
+  const st = sim.world.sticks[k];
+  sim.player.x = st.x; sim.player.y = st.y - 0.5; sim.player.yaw = 0;
+  S.begin(sim, S.targetFor(sim, "stick", k));
+  for (let i = 0; i < 25; i++) S.tick(sim, 0.1, {});        // 2.5 s
+  assert.equal(sim.sticks[k], false, "picked up before three seconds");
+  for (let i = 0; i < 6; i++) S.tick(sim, 0.1, {});         // 3.1 s
+  assert.equal(sim.sticks[k], true, "never picked up");
+  // a second one, abandoned halfway
+  const k2 = sim.world.sticks.findIndex((s2, i) => i !== k && s2.area === 0);
+  const s2 = sim.world.sticks[k2];
+  sim.player.x = s2.x; sim.player.y = s2.y - 0.5;
+  S.begin(sim, S.targetFor(sim, "stick", k2));
+  for (let i = 0; i < 15; i++) S.tick(sim, 0.1, {});
+  S.tick(sim, 0.1, { fwd: 1 });
+  for (let i = 0; i < 30; i++) S.tick(sim, 0.1, {});
+  assert.equal(sim.sticks[k2], false, "moving did not let go");
+});
+
+t("the first deadfall is a long day even for everyone, and the biggest on the trail", () => {
+  const sim = S.createRun({ seed: 11, camp: true });
+  const w = sim.world.deadfalls;
+  assert.ok(w[0].work >= 2 * Math.max(...w.slice(1).map((d) => d.work)) - 1);
+  const df = w[0];
+  sim.player.x = df.x; sim.player.y = df.y - 2.5;
+  for (const m of sim.members) { m.task = "follow"; m.x = sim.player.x; m.y = sim.player.y - 1.5; m.skills.cut = 2; }
+  S.act(sim, S.targetFor(sim, "chop", 0));
+  const t0 = sim.time;
+  for (let i = 0; i < 40000 && sim.deadfalls[0].done < 1; i++) S.tick(sim, 0.1, {});
+  const hours = sim.time - t0;
+  assert.ok(hours > 5, `all six cleared it in ${hours.toFixed(1)} h`);
 });

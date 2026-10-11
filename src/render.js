@@ -277,8 +277,12 @@ export function createRenderer(canvas) {
 
     // camp
     const C = B.camp, camp = sim.camp;
-    C.g.visible = camp.up;
-    C.g.position.set(camp.x, 0, -camp.y);
+    // a camp going up shows where it is, growing as the work goes
+    const pitch = sim.pitch;
+    C.g.visible = camp.up || !!pitch;
+    const grow = camp.up ? 1 : pitch ? Math.max(0.15, 1 - pitch.left / 2) : 1;
+    for (const tnt of C.tents) tnt.scale.set(grow, grow, grow);
+    C.g.position.set(camp.up ? camp.x : pitch ? pitch.x : camp.x, 0, -(camp.up ? camp.y : pitch ? pitch.y : camp.y));
     const fuel = camp.lit ? Math.min(1, camp.fire / 6) : 0;
     C.flame.visible = camp.lit;
     C.flame.scale.set(0.5 + fuel, 0.4 + fuel * 1.4 + Math.sin(sim.time * 400) * 0.06, 0.5 + fuel);
@@ -398,7 +402,7 @@ function campMesh() {
     g.add(l); pile.push(l);
   }
   g.add(tent, tent2, flame, light);
-  return { g, flame, light, pile };
+  return { g, flame, light, pile, tents: [tent, tent2] };
 }
 
 function landmark(c, world) {

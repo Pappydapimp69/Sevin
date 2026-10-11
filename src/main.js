@@ -68,9 +68,8 @@ function recruit(seed) {
   const names = makeRoster(stream(hash("names", seed)), 5);
   ui.recruit(names, (team) => {
     const run = S.createRun({ seed, party: team });
-    const dir = BEARINGS[bearingOf(run.player, run.camp)];
-    S.say(run, `You walk in at the south end of the trail. Camp is in a clearing off the trail, ${dir} of you. North is the way through.`);
-    S.say(run, "Somewhere north, a deadfall lies across the trail. At camp you set the day's work.");
+    S.say(run, "You walk in at the south end of the trail with the camp kit. There is no camp yet. North is the way through.");
+    S.say(run, "Somewhere north, a deadfall lies across the trail.");
     start(run);
     Save.saveRun(run);
   }, () => recruit(freshSeed()));
@@ -115,8 +114,7 @@ const campVerbs = {
 };
 
 function verbAct(target) {
-  const r = S.act(sim, target, tolerance());
-  if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press {camp} to walk out.");
+  S.begin(sim, target, tolerance());
 }
 
 function verb(v) {

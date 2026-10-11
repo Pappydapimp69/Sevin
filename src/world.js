@@ -89,7 +89,9 @@ export function generateWorld(seed) {
     // that row (the trail, plus any sidestep) and block them all.
     const cells = [];
     for (let k = 0; k < W; k++) if (walk[idx(k, cy)]) cells.push([k, cy]);
-    return { id: i, area: a, x: center(cx), y: center(cy), cells, work: 22 };
+    // person-hours to clear. The first is the big one: it is what teaches the
+    // loop, and it should not fall the first afternoon.
+    return { id: i, area: a, x: center(cx), y: center(cy), cells, work: a === 0 ? 45 : 22 };
   });
 
   // --- pylons: 3 in area 1, 2-4 after; one in a clearing, rest by the trail --

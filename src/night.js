@@ -10,6 +10,7 @@ import {
 } from "./sim.js";
 import { WEATHERS } from "./chronicle.js";
 import { CELL, AREA_H, center } from "./world.js";
+import { bendVoice } from "./voice.js";
 
 export const NIGHT_DRAWS = 2 + MAX_SLOTS * 2 + 4;
 export const BEARINGS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
@@ -110,14 +111,16 @@ export function sleep(sim) {
     const from = camp.up ? camp : p;
     const spot = placeMissing(sim, from, ang01 * Math.PI * 2, d01);
     sim.missing.push({
-      id: taken.id, name: taken.name, slot: taken.slot, skills: { ...taken.skills }, sanity: taken.sanity,
+      id: taken.id, name: taken.name, slot: taken.slot, skills: { ...taken.skills }, sanity: taken.sanity, voice: taken.voice,
       x: spot.x, y: spot.y, area: spot.area, nights: 1, found: false, lost: false, takenDay: d,
     });
     sim.members = sim.members.filter((m) => m !== taken);
     // Something takes the slot: same name, a little better at the work.
     const sk = taken.skills;
+    const fakeId = sim.nextId++;
     const fake = {
-      id: sim.nextId++, name: taken.name, slot: taken.slot, fake: true,
+      // their whistle, with one thing slightly wrong
+      id: fakeId, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
       skills: { cut: Math.min(6, sk.cut + 1), carry: Math.min(6, sk.carry + 1), fire: Math.min(6, sk.fire + 1) },
       sanity: 1, x: taken.x, y: taken.y, task: taken.task, state: "idle", stateT: 0, load: 0, worked: 0,
       goal: null, home: false, gone: false, quiet: 0, trainee: false, since: d + 1,
@@ -159,7 +162,8 @@ export function sleep(sim) {
 
   sim.asleep = false;
   sim.wantSleep = false;
-  sim.plan.pending = camp.up && atCamp(sim, p) ? "dawn" : null;
+  // at camp, or anywhere if there is no camp: you wake with whoever is around
+  sim.plan.pending = !camp.up || atCamp(sim, p) ? "dawn" : null;
   sim.plan.day = nd;
 
   const lines = [`Day ${nd}.`];
