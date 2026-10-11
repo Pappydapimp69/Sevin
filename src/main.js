@@ -167,14 +167,92 @@ function tap(x, y) {
 
 function doSleep() {
   if (!canSleep(sim)) { S.say(sim, sim.tutorial ? "Not here." : "Not yet. Sleep comes at dusk."); return; }
-  const go = () => {
-    sleep(sim);
-    Save.saveRun(sim);
-    if (sim.plan.pending) openPending();
-  };
   if (sim.camp.up && S.atCamp(sim, sim.player) && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
-  if (!S.atCamp(sim, sim.player)) ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", go);
-  else go();
+  if (!S.atCamp(sim, sim.player)) ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep());
+  else goToSleep();
+}
+
+// ---------------------------------------------------------------- the night
+// Going to sleep is a scene, not a cut: into the tent (or down on the ground),
+// the light goes, the hours go by on a clock, and the morning comes up. The
+// night itself is resolved in the dark, once, by night.js.
+let scene = null;
+const fade = document.getElementById("fade");
+const SCENE = { settle: 2.4, dark: 1.0, hours: 4.2, wake: 1.4 };
+
+function goToSleep(collapsed = false) {
+  if (scene || !sim) return;
+  const p = sim.player;
+  const from = { x: p.x, y: p.y, h: 1.65, yaw: p.yaw, pitch: p.pitch };
+  let to;
+  if (!collapsed && sim.camp.up && S.atCamp(sim, p)) {
+    // the nearer of the two tents, from its open side
+    const tents = S.TENTS.map((t) => ({ x: sim.camp.x + t.dx, y: sim.camp.y + t.dy }));
+    const tent = tents.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+    const yaw = Math.atan2(tent.x - p.x, tent.y - p.y);
+    // walk to the opening, where the tent fills the view; then duck in
+    var door = { x: tent.x - Math.sin(yaw) * 2.6, y: tent.y - Math.cos(yaw) * 2.6, h: 1.5, yaw, pitch: -0.12 };
+    to = { x: tent.x - Math.sin(yaw) * 0.5, y: tent.y - Math.cos(yaw) * 0.5, h: 0.6, yaw, pitch: -0.05 };
+  } else {
+    to = { x: p.x, y: p.y, h: 0.25, yaw: p.yaw, pitch: 0.9 };    // down on the ground, eyes on the canopy
+  }
+  scene = { t: 0, phase: "settle", from, to, door: typeof door === "undefined" ? null : door, startTime: sim.time, startDay: S.today(sim), rough: !(sim.camp.up && S.atCamp(sim, p)), collapsed };
+  paused = true; input.setEnabled(false);
+  fade.hidden = false; fade.style.opacity = 0;
+  document.getElementById("fadeClock").textContent = "";
+  document.getElementById("fadeDay").textContent = "";
+  document.getElementById("fadeNote").textContent = "";
+}
+
+const ease = (k) => k * k * (3 - 2 * k);
+function lerpCam(a, b, k) {
+  let dy = b.yaw - a.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI;
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, h: a.h + (b.h - a.h) * k, yaw: a.yaw + dy * k, pitch: a.pitch + (b.pitch - a.pitch) * k };
+}
+
+/** Advance the scene; returns the camera to draw from, or null when it is over. */
+function tickScene(dt) {
+  const sc = scene;
+  sc.t += dt;
+  const $ = (id) => document.getElementById(id);
+  if (sc.phase === "settle") {
+    const raw = Math.min(1, sc.t / SCENE.settle), k = ease(raw);
+    fade.style.opacity = String(Math.max(0, (raw - 0.75) / 0.25) * 0.6);
+    if (sc.t >= SCENE.settle) { sc.phase = "dark"; sc.t = 0; }
+    if (!sc.door) return lerpCam(sc.from, sc.to, k);
+    return raw < 0.7 ? lerpCam(sc.from, sc.door, ease(raw / 0.7)) : lerpCam(sc.door, sc.to, ease((raw - 0.7) / 0.3));
+  }
+  if (sc.phase === "dark") {
+    fade.style.opacity = String(0.6 + 0.4 * Math.min(1, sc.t / SCENE.dark));
+    if (sc.t >= SCENE.dark) {
+      // the night happens here, in the dark, once
+      sleep(sim);
+      Save.saveRun(sim);
+      sc.endTime = sim.time;
+      sc.phase = "hours"; sc.t = 0;
+      $("fadeNote").textContent = sc.collapsed ? "You do not remember lying down." : sc.rough ? "You sleep where you are." : "";
+    }
+    return sc.to;
+  }
+  if (sc.phase === "hours") {
+    const k = Math.min(1, sc.t / SCENE.hours);
+    const t = sc.startTime + (sc.endTime - sc.startTime) * ease(k);
+    $("fadeClock").textContent = S.clock(t);
+    $("fadeDay").textContent = `DAY ${S.dayOf(t)}`;
+    if (k >= 1) { sc.phase = "wake"; sc.t = 0; $("fadeNote").textContent = ""; }
+    return sc.to;
+  }
+  // wake: the morning comes up where you lay down
+  const k = Math.min(1, sc.t / SCENE.wake);
+  fade.style.opacity = String(1 - ease(k));
+  if (k >= 0.4) { $("fadeClock").textContent = ""; $("fadeDay").textContent = ""; }
+  if (k >= 1) {
+    fade.hidden = true; scene = null;
+    paused = false; input.setEnabled(true);
+    if (sim.plan.pending) openPending();
+    return null;
+  }
+  return lerpCam(sc.to, { ...sc.from, x: sim.player.x, y: sim.player.y, pitch: 0 }, ease(k));
 }
 
 function openPending(sleepAfter = false) {
@@ -207,7 +285,7 @@ function frame(now) {
       const inp = input.read(dt);
       S.tick(sim, dt, inp);
       audio.frame(sim, dt, Math.abs(inp.fwd) + Math.abs(inp.side) > 0.1, inp.sprint);
-      if (sim.wantSleep) { sim.wantSleep = false; sleep(sim); Save.saveRun(sim); }
+      if (sim.wantSleep) { sim.wantSleep = false; goToSleep(true); }
       if (sim.plan.pending && !ui.open) openPending();
       // someone says something now and then
       chatClock += dt;
@@ -221,18 +299,22 @@ function frame(now) {
       }
       if (!sim.tutorial && now - lastSave > 15000) { lastSave = now; Save.saveRun(sim); }
     }
-    // events: sound, and the end of a run; drained whether or not paused
-    for (const e of sim.events) {
+    // the night scene holds the camera; its fire still crackles
+    const cam = scene ? tickScene(dt) : null;
+    if (scene) audio.frame(sim, dt, false, false);
+    // events: sound, and the end of a run; drained whether or not paused,
+    // but held through the night scene so morning sounds come at morning
+    if (!scene) for (const e of sim.events) {
       audio.event(e, sim);
       if (e.kind === "over") finish(sim.over);
       // a whistle back is heard, not seen: say where it came from
       if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[bearingOf(sim.player, e)]}.`);
     }
-    sim.events.length = 0;
+    if (!scene) sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;
     const action = paused ? null : S.resolveAction(sim, tolerance());
-    ui.hud(sim, { action, target: paused ? null : lookTarget(), step });
-    renderer.draw(sim, dt, { target: action });
+    if (scene) ui.hideHud(); else ui.hud(sim, { action, target: paused ? null : lookTarget(), step });
+    renderer.draw(sim, dt, { target: scene ? null : action, cam });
   }
   requestAnimationFrame(frame);
 }
@@ -246,4 +328,4 @@ for (const b of document.querySelectorAll("#touchbar button")) b.addEventListene
 title();
 
 // for tests and the curious
-window.__sevin = { get sim() { return sim; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { get sim() { return sim; }, get scene() { return scene; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };

@@ -2,7 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
-import { daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
+import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
@@ -235,10 +235,11 @@ export function createRenderer(canvas) {
     B.sun.intensity = 0.8 * look.light * day;
     B.groundMat.color.set(weather === "cold" ? 0xdfe8ee : 0xffffff);
 
-    // camera
-    camera.position.set(p.x, 1.65, -p.y);
-    camera.rotation.y = -p.yaw;
-    camera.rotation.x = p.pitch;
+    // camera: your eyes, unless a scene (going to sleep) is holding it
+    const cam = view.cam || { x: p.x, y: p.y, h: 1.65, yaw: p.yaw, pitch: p.pitch };
+    camera.position.set(cam.x, cam.h, -cam.y);
+    camera.rotation.y = -cam.yaw;
+    camera.rotation.x = cam.pitch;
 
     // deadfalls: the cut opens as the work goes; cleared, the log rolls aside
     sim.deadfalls.forEach((d, i) => {
@@ -314,7 +315,8 @@ export function createRenderer(canvas) {
     for (const m of party(sim)) {
       let f = B.members.get(m.id);
       if (!f) { f = figure(SLOT_COLOURS[m.slot % SLOT_COLOURS.length], { kind: "member", id: m.id }); B.members.set(m.id, f); }
-      f.visible = true;
+      // a scene's camera passing through someone does not see their insides
+      f.visible = !(view.cam && Math.hypot(view.cam.x - m.x, view.cam.y - m.y) < 1.3);
       const prev = f.userData.prev || { x: m.x, y: m.y };
       const mv = Math.hypot(m.x - prev.x, m.y - prev.y);
       if (mv > 0.001) f.rotation.y = Math.atan2(-(m.x - prev.x), -(m.y - prev.y));
@@ -415,8 +417,8 @@ function pylonMesh(mossed) {
 function campMesh() {
   const g = new THREE.Group();
   const tent = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2, 4), new THREE.MeshLambertMaterial({ color: 0x8a7f5a }));
-  tent.position.set(-2.4, 1.1, -1.6); tent.rotation.y = Math.PI / 4;
-  const tent2 = tent.clone(); tent2.position.set(2.2, 1.1, -2);
+  tent.position.set(TENTS[0].dx, 1.1, -TENTS[0].dy); tent.rotation.y = Math.PI / 4;
+  const tent2 = tent.clone(); tent2.position.set(TENTS[1].dx, 1.1, -TENTS[1].dy);
   const ringMat = new THREE.MeshLambertMaterial({ color: 0x55575a });
   const stones = [];
   for (let k = 0; k < 8; k++) {

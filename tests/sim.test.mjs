@@ -419,7 +419,7 @@ t("every task says which skill it leans on, and it is the one the sim uses", () 
   assert.ok(ui.includes("TASK_SKILL[t]") && ui.includes('classList.toggle("used"'), "the plan screen does not show it");
 });
 
-t("gathering is chopping: 45 minutes a chop, at most 3 pieces back from it", () => {
+t("gathering is chopping: an hour a chop, 1 to 3 pieces back from it", () => {
   for (const carry of [0, 2, 6]) {
     const sim = S.createRun({ seed: 5, camp: true });
     sim.plan.dawnDay = 1;
@@ -433,9 +433,9 @@ t("gathering is chopping: 45 minutes a chop, at most 3 pieces back from it", () 
       if (started != null && a.load && trips.length === 0) trips.push({ took: sim.time - started, load: a.load });
       if (sim.camp.pile > pile) { assert.ok(sim.camp.pile - pile <= 3, `a trip brought ${sim.camp.pile - pile}`); pile = sim.camp.pile; }
     }
-    assert.ok(trips[0].took >= 0.7, `a chop took ${trips[0].took} h`);   // 45 minutes, not the constant: it is what is tested
+    assert.ok(trips[0].took >= 0.95, `a chop took ${trips[0].took} h`);   // an hour, not the constant: it is what is tested
     assert.ok(trips[0].load >= 1 && trips[0].load <= 3);
-    assert.ok(sim.camp.pile - 3 <= 36, "too much wood for a day");
+    assert.ok(sim.camp.pile - 3 <= 27, "too much wood for a day");
   }
 });
 
@@ -494,4 +494,16 @@ t("using their judgement: they make camp when there is none, keep the pile up, c
   assert.ok(all.every((m) => m.task === "auto"), "auto was overwritten");
   const s = S.autoScores(sim, all[0]);
   assert.ok("chop" in s && "camp" in s && "gather" in s);
+});
+
+t("a chop brings 1 to 3 pieces; carrying makes a bigger haul likelier, not certain", () => {
+  const avg = (carry) => {
+    let sum = 0, seen = new Set();
+    for (let k = 0; k < 400; k++) { const n = S.woodPerChop({ id: 3, skills: { carry } }, 11, k); assert.ok(n >= 1 && n <= 3, String(n)); sum += n; seen.add(n); }
+    return { mean: sum / 400, seen };
+  };
+  const lo = avg(0), hi = avg(5);
+  assert.ok(hi.mean > lo.mean + 0.4, `${lo.mean} vs ${hi.mean}`);
+  assert.equal(lo.seen.size, 3, "an unskilled hand never got 1, 2 and 3");
+  assert.ok(hi.seen.has(1) || hi.seen.has(2), "a skilled hand always got 3: that is certain, not likely");
 });

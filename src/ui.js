@@ -29,7 +29,7 @@ const SKILL_LABEL = { cut: "Cutting", carry: "Carrying", fire: "Firecraft" };
 // chopRate (+18%/level), load 2+carry and camp work +10%/level, burnHours +20%/level.
 const SKILL_WHAT = {
   cut: "Chops through a deadfall faster. Deadfalls block the trail north.",
-  carry: "Gets more wood out of each chop when gathering (up to 3 pieces), and makes or takes down camp faster.",
+  carry: "Makes a bigger haul likelier when gathering (1 to 3 pieces an hour's chop), and makes or takes down camp faster.",
   fire: "Makes each stick they put on the fire burn longer. A watch who knows fires gets through the night on less wood.",
 };
 const dots = (n) => "●".repeat(Math.max(0, Math.round(n))) + "○".repeat(Math.max(0, 6 - Math.round(n)));

@@ -18,6 +18,9 @@ export const SAVE_VERSION = 1;
 export const SEC_PER_HOUR = 20;      // real seconds per game hour
 export const WORK_SPEED = 8;         // time runs this much faster while you work
 export const DAWN = 6, DUSK = 18;
+// The camp's layout, around the fire: where the tents stand (render draws
+// them, the sleep scene walks into one).
+export const TENTS = Object.freeze([{ dx: -3.4, dy: 2.4 }, { dx: 3.2, dy: 2.8 }]);
 export const CAMP_R = 12;            // metres: the campsite, and the fire's shield
 export const REACH = 3;              // metres: hands' reach
 export const HEAR = 25;              // metres: how far a whistle carries
@@ -32,10 +35,15 @@ export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather:
 export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp"));
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
-// Gathering is chopping deadwood: 45 minutes a chop, at most 3 pieces from
-// it; carrying skill gets the most out of each (1, then 2 at 2, 3 at 4).
-export const WOOD_CHOP_HOURS = 0.75;
-export const woodPerChop = (m) => Math.min(3, 1 + Math.floor((m.skills?.carry || 0) / 2));
+// Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
+// pieces out of it. Carrying makes a bigger haul likelier, never certain.
+// The roll is a side hash (who, which chop), not the run stream.
+export const WOOD_CHOP_HOURS = 1;
+export function woodPerChop(m, seed = 0, k = 0) {
+  const r = stream(hash("haul", seed, m.id ?? 0, k))();
+  const c = m.skills?.carry || 0;
+  return 1 + (r < 0.35 + 0.1 * c ? 1 : 0) + (r < 0.1 + 0.08 * c ? 1 : 0);
+}
 export const STRIKE_HOURS = 2;
 
 // ---------------------------------------------------------------------------
@@ -339,7 +347,7 @@ function tickMember(sim, m, dt, hours) {
   // Their task keeps through the night, but after dark nobody leaves the
   // fire to work it; they take it up again at first light.
   if (atFireTonight(sim, m) && m.state !== "home") {
-    const spot = { x: sim.camp.x + Math.cos(m.slot * 1.25 + 0.4) * 2.2, y: sim.camp.y + Math.sin(m.slot * 1.25 + 0.4) * 2.2 };
+    const spot = { x: sim.camp.x + Math.cos(m.slot * 1.25 + 0.4) * 1.7, y: sim.camp.y + Math.sin(m.slot * 1.25 + 0.4) * 1.7 };
     if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.5)) {
       m.state = "sit";
       if (!sim.camp.lit || sim.camp.fire < 1.5) memberTends(sim, m);
@@ -400,7 +408,8 @@ function tickMember(sim, m, dt, hours) {
           m.workT = sim.time;
           if (m.gathering >= WOOD_CHOP_HOURS) {
             m.gathering = 0;
-            m.load = woodPerChop(m);
+            m.chops = (m.chops || 0) + 1;
+            m.load = woodPerChop(m, sim.seed, m.chops);
             m.from = { x: site.x, y: site.y };
             practice(sim, m, "carry");
             m.state = "carry";

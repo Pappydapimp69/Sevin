@@ -60,6 +60,9 @@ different game. SEVIN has one game, so each module has one job.
 - **Camp.** One at a time. Take down 1h, make 2h, helpers speed both. The
   woodpile belongs to the camp. The fire belongs to the camp, burns wood, and
   only shields the campsite at night.
+- **Sleep is a scene** (`main.js`): into the nearer tent (or down on the ground
+  if away from camp), the light goes, a clock runs the hours to dawn, the
+  morning comes up. The night is resolved once, in the dark.
 - **Night.** Exposure-weighted: outside camp, no fire, deep, alone is worst.
   One real member at most is taken a night. A fake takes the slot with the same
   name and slightly better skills. Nobody is told.
@@ -103,7 +106,7 @@ different game. SEVIN has one game, so each module has one job.
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
-| gathering | a 45 min chop, then home with at most 3 pieces (1 + carry/2) | `WOOD_CHOP_HOURS`, `woodPerChop` |
+| gathering | an hour's chop, then home with 1-3 pieces; carrying makes more likely | `WOOD_CHOP_HOURS`, `woodPerChop` |
 | carrying | pieces per chop; camp work +10%/level | `sim.js` |
 | firecraft | each stick burns 1.5 h +20%/level; the watch uses its best hand | `burnHours` |
 | hands | stick 0.35 s, feed 1.2 s, light / pylon / rescue 3 s; moving lets go | `ACT_TIME` |
