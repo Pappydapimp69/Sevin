@@ -9,7 +9,7 @@ export function createAudio() {
   let ctx = null, master = null, noise = null;
   let wind = null, fire = null, bed = [];
   let volume = 0.7;
-  let chopClock = 0, stepClock = 0, crackleClock = 0;
+  let behindClock = 20, chopClock = 0, stepClock = 0, crackleClock = 0;
 
   function unlock() {
     if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
@@ -146,6 +146,13 @@ export function createAudio() {
 
     stepClock -= dt;
     if (moving && stepClock <= 0) { stepClock = running ? 0.3 : 0.45; burst({ freq: 400, dur: 0.07, gain: 0.12, type: "lowpass" }); }
+
+    // a failing mind hears someone walking behind it
+    behindClock -= dt;
+    if (sim.player.sanity < 0.5 && behindClock <= 0) {
+      behindClock = 18 + Math.random() * 24;
+      for (let i = 0; i < 5; i++) setTimeout(() => burst({ freq: 380, dur: 0.08, gain: 0.14, type: "lowpass", pan: -0.3 + (i % 2) * 0.6 }), i * 420);
+    }
 
     chopClock -= dt;
     if (sim.work?.kind === "chop" && chopClock <= 0) { chopClock = 0.55; burst({ freq: 220, dur: 0.12, gain: 0.5, q: 2 }); burst({ freq: 1400, dur: 0.04, gain: 0.2 }); }

@@ -14,7 +14,7 @@ import { canStand, hourOf, today, SEC_PER_HOUR } from "./sim.js";
 
 export const STICK_MIND = 0.75;      // below this the ground starts offering things
 export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to burn
-export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {} });
+export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {} });
 
 const mind = (sim) => sim.player.sanity;
 
@@ -97,6 +97,7 @@ export function tickPhantom(sim, hours) {
   const ph = sim.phantom;
   if (!ph) return;
   ph.slither ||= {};
+  tickWatchers(sim);
   // a "stick" that is a snake wakes when you come close, and goes
   for (const s of phantomSticks(sim)) {
     if (s.slither || s.kind !== "snake" || Math.hypot(s.x - sim.player.x, s.y - sim.player.y) > SNAKE_M) continue;
@@ -113,3 +114,51 @@ export function tickPhantom(sim, hours) {
 
 /** Dawn: shown snaps to true. */
 export const reconcile = (sim) => { sim.phantom = fresh(); };
+
+// ---------------------------------------------------------------------------
+// Someone in the trees. Below WATCH_MIND a figure stands at the edge of what
+// you can see, still, facing you, like a teammate. Come within 9 m and it
+// turns and walks off between the trunks, and is gone. Fixed in the world on a
+// 20 m grid from (seed, day, cell), so none appears beside you.
+// ---------------------------------------------------------------------------
+export const WATCH_MIND = 0.6;
+const WATCH_CELL = 20, WATCH_SHOW = 34, WATCH_NEAR = 9, WALK_S = 7;
+
+export function phantomWatchers(sim) {
+  const ph = sim.phantom || fresh();
+  const out = [];
+  for (const [id, v] of Object.entries(ph.watch || {})) {
+    const e = (sim.time - v.t0) * SEC_PER_HOUR;
+    out.push({ id, walking: true, x: v.x + Math.cos(v.ang) * 1.7 * e, y: v.y + Math.sin(v.ang) * 1.7 * e, ang: v.ang, t: e });
+  }
+  const m = mind(sim);
+  if (m >= WATCH_MIND) return out;
+  const density = Math.min(0.6, (WATCH_MIND - m) * 1.6);
+  const day = today(sim);
+  const cx0 = Math.floor((sim.player.x - WATCH_SHOW) / WATCH_CELL), cx1 = Math.floor((sim.player.x + WATCH_SHOW) / WATCH_CELL);
+  const cy0 = Math.floor((sim.player.y - WATCH_SHOW) / WATCH_CELL), cy1 = Math.floor((sim.player.y + WATCH_SHOW) / WATCH_CELL);
+  for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+    const r = stream(hash("watcher", sim.seed, day, cx, cy));
+    const has = r(), x = cx * WATCH_CELL + r() * WATCH_CELL, y = cy * WATCH_CELL + r() * WATCH_CELL;
+    if (has >= density) continue;
+    const id = `w${day}:${cx}:${cy}`;
+    if (ph.taken.includes(id) || (ph.watch && ph.watch[id]) || !canStand(sim, x, y)) continue;
+    out.push({ id, x, y, walking: false });
+  }
+  return out;
+}
+
+function tickWatchers(sim) {
+  const ph = sim.phantom;
+  ph.watch ||= {};
+  for (const w of phantomWatchers(sim)) {
+    if (w.walking || Math.hypot(w.x - sim.player.x, w.y - sim.player.y) > WATCH_NEAR) continue;
+    const away = Math.atan2(w.y - sim.player.y, w.x - sim.player.x) + (stream(hash("leave", sim.seed, w.id))() - 0.5) * 1.2;
+    ph.watch[w.id] = { x: w.x, y: w.y, ang: away, t0: sim.time };
+  }
+  for (const [id, v] of Object.entries(ph.watch)) if ((sim.time - v.t0) * SEC_PER_HOUR > WALK_S) { delete ph.watch[id]; ph.taken.push(id); }
+}
+
+/** A dead pylon looks lit to a mind this far gone: the one honest instrument stops being honest. */
+export const PYLON_MIND = 0.45;
+export const seesPylonLit = (sim) => mind(sim) < PYLON_MIND;

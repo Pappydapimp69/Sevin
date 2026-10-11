@@ -159,7 +159,7 @@ export function sleep(sim) {
   // sits up and does no good, as before.
   const watchSkill = watchers.reduce((s, m) => s + m.skills.watch, 0);
   const pressure =
-    0.1 + (shielded(sim, area) ? 0 : 0.07 * area) + (fireHeld && !rough ? 0 : 0.25) + 0.08 * fakesHeld +
+    0.22 + (shielded(sim, area) ? 0 : 0.07 * area) + (fireHeld && !rough ? 0 : 0.25) + 0.08 * fakesHeld +
     0.25 * (1 - reals.reduce((s, m) => s + m.sanity, 0) / Math.max(1, reals.length)) -
     Math.min(0.18, 0.03 * watchSkill);
   const P = d === 1 ? 0 : Math.max(0, Math.min(0.85, pressure));

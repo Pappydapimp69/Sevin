@@ -2,7 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
-import { phantomSticks, shownFire } from "./percept.js";
+import { phantomSticks, phantomWatchers, seesPylonLit, shownFire } from "./percept.js";
 import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
@@ -210,9 +210,11 @@ export function createRenderer(canvas) {
     upper.add(body, head, pack);
     g.add(upper);
     g.userData.body = upper;
-    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2, 8), HIDDEN);
-    hit.position.y = 1; hit.userData.pick = pick; hit.userData.owner = g;
-    g.add(hit); built.picks.push(hit);
+    if (pick) {
+      const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2, 8), HIDDEN);
+      hit.position.y = 1; hit.userData.pick = pick; hit.userData.owner = g;
+      g.add(hit); built.picks.push(hit);
+    }
     scene.add(g);
     return g;
   }
@@ -266,6 +268,9 @@ export function createRenderer(canvas) {
         if (f < 1) { col = new THREE.Color(0x3a8bff).lerp(new THREE.Color(0xff3a2a), f).getHex(); em = col; }
         else { col = 0x2a2a2a; }
       } else if (ps.spent) col = 0x2a2a2a;
+      // a mind far gone sees the dead ones burn blue: the honest instrument lies exactly when it is needed
+      const really = ps.litAt != null && sim.time - ps.litAt < PYLON_HOURS;
+      if (seesPylonLit(sim) && !really) { col = 0x3a8bff; em = col; }
       crystal.material.color.set(col); crystal.material.emissive.set(em);
       g.userData.light.intensity = em ? 2.5 : 0;
       g.userData.light.color.set(em || 0);
@@ -400,6 +405,19 @@ export function createRenderer(canvas) {
       });
     });
     for (let i = woken.length; i < B.snakes.length; i++) B.snakes[i].g.visible = false;
+
+    // someone in the trees: drawn like a teammate (a grey one), still and facing you
+    // until you come near, then walking off
+    const watchers = phantomWatchers(sim);
+    B.watchers ||= [];
+    watchers.forEach((w, i) => {
+      let f = B.watchers[i];
+      if (!f) { f = figure(0x7d8286, null); B.watchers[i] = f; }
+      f.visible = true;
+      f.position.set(w.x, w.walking ? Math.abs(Math.sin(w.t * 6)) * 0.06 : 0, -w.y);
+      f.rotation.y = w.walking ? Math.atan2(-Math.cos(w.ang), -Math.sin(w.ang)) * -1 + Math.PI : Math.atan2(-(p.x - w.x), -(p.y - w.y));
+    });
+    for (let i = watchers.length; i < B.watchers.length; i++) B.watchers[i].visible = false;
 
     // the target marker
     const t = view.target, M = B.marker;
