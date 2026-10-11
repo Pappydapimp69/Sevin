@@ -14,6 +14,7 @@ import { generateWorld, tutorialWorld, CELL, AREA_H, toCell, center, open, place
 import { record, WEATHERS } from "./chronicle.js";
 import { makeVoice } from "./voice.js";
 import { SKILLS, fillSkills, TASK_SKILL } from "./skills.js";
+import * as Phantom from "./phantom.js";
 export { TASK_SKILL };
 
 export const SAVE_VERSION = 1;
@@ -86,6 +87,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     seenKeys: {},
     call: null,                               // the dawn call, if any
     lastFollowCall: -1,
+    phantom: Phantom.fresh(),
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -591,9 +593,13 @@ export function actionTargets(sim, tolerance = 1) {
   }
   for (let i = 0; i < W.sticks.length; i++)
     if (!sim.sticks[i] && dist(W.sticks[i], p) < R(2.6)) out.push({ kind: "stick", id: i, x: W.sticks[i].x, y: W.sticks[i].y, h: 0.6, label: "Pick up wood" });
+  // a failing mind: sticks that are not there, and a dead fire that seems to burn
+  for (const ps of Phantom.phantomSticks(sim))
+    if (dist(ps, p) < R(2.6)) out.push({ kind: "stick", id: ps.id, x: ps.x, y: ps.y, h: 0.6, label: "Pick up wood", phantom: true });
   if (sim.camp.up && dist(sim.camp, p) < R(REACH)) {
     const pile = sim.camp.pile > 0 ? "" : " (no wood in the pile)";
-    out.push({ kind: sim.camp.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, label: (sim.camp.lit ? "Feed the fire" : "Light the fire") + pile });
+    const seen = Phantom.shownFire(sim);
+    out.push({ kind: seen.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, phantom: seen.phantom, label: (seen.lit ? "Feed the fire" : "Light the fire") + pile });
   }
   // the far side is a place, not a thing: no facing needed
   if (W.farSide && dist(W.farSide, p) < W.farSide.r) out.push({ kind: "home", id: 0, x: p.x, y: p.y, h: 0, label: "Light a pylon home", area: true });
@@ -648,6 +654,7 @@ export function act(sim, target = null, tolerance = 1) {
   const p = sim.player, W = sim.world;
   switch (a.kind) {
     case "stick":
+      if (a.phantom) { Phantom.pickPhantom(sim, a.id); sim.events.push({ kind: "stick" }); break; }
       sim.sticks[a.id] = true;
       p.wood += 1;
       note(sim, { verb: "picked", actor: "you", object: "firewood", cls: "wood", x: W.sticks[a.id].x, y: W.sticks[a.id].y });
@@ -657,7 +664,7 @@ export function act(sim, target = null, tolerance = 1) {
       sim.work = sim.work?.kind === "chop" ? null : { kind: "chop", id: a.id };
       break;
     case "light":
-    case "feed": tendFire(sim); break;
+    case "feed": if (a.phantom) Phantom.feedPhantom(sim); else tendFire(sim); break;
     case "pylon": return lightPylon(sim, a.id);
     case "home": return lightHome(sim);
     case "rescue": return rescue(sim, a.id);
@@ -700,10 +707,11 @@ export function tendFire(sim) {
 
 // Carried wood goes to the pile the moment you walk into camp.
 function dropWood(sim) {
-  if (sim.camp.up && sim.player.wood > 0 && !sim.player.carryingKit && dist(sim.player, sim.camp) < CAMP_R * 0.6) {
+  if (sim.camp.up && (sim.player.wood > 0 || sim.phantom.extra > 0) && !sim.player.carryingKit && dist(sim.player, sim.camp) < CAMP_R * 0.6) {
     sim.camp.pile += sim.player.wood;
-    say(sim, `You drop ${sim.player.wood} wood on the pile.`);
+    say(sim, `You drop ${Phantom.shownWood(sim)} wood on the pile.`);   // what you believed you had
     sim.player.wood = 0;
+    sim.phantom.extra = 0;
     sim.events.push({ kind: "dropped" });
   }
 }
@@ -1076,8 +1084,9 @@ export function tick(sim, dt, input = {}) {
   // the fire burns whenever it is lit
   if (sim.camp.lit) {
     sim.camp.fire -= hours;
-    if (sim.camp.fire <= 0) { sim.camp.fire = 0; sim.camp.lit = false; sim.events.push({ kind: "fireOut" }); }
+    if (sim.camp.fire <= 0) { sim.camp.fire = 0; sim.camp.lit = false; sim.events.push({ kind: "fireOut" }); Phantom.onFireOut(sim); }
   }
+  Phantom.tickPhantom(sim, hours);
 
   drain(sim, hours);
 

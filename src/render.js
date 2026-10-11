@@ -2,6 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
+import { phantomSticks, shownFire } from "./percept.js";
 import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
@@ -133,6 +134,7 @@ export function createRenderer(canvas) {
     // sticks
     const stickGeo = new THREE.CylinderGeometry(0.06, 0.08, 1.1, 5);
     const stickMat = new THREE.MeshLambertMaterial({ color: 0x7a5a3a });
+    B.stickGeo = stickGeo; B.stickMat = stickMat;
     B.sticks = world.sticks.map((st) => {
       const m = new THREE.Mesh(stickGeo, stickMat);
       m.rotation.set(Math.PI / 2, 0, st.rot); m.position.set(st.x, 0.08, -st.y);
@@ -303,10 +305,11 @@ export function createRenderer(canvas) {
     C.kit.visible = !camp.up || striking ? prog < 0.6 : false;
     C.kit.scale.setScalar(Math.max(0.3, 1 - prog));
     C.g.position.set(camp.up ? camp.x : pitch ? pitch.x : camp.x, 0, -(camp.up ? camp.y : pitch ? pitch.y : camp.y));
-    const fuel = camp.lit ? Math.min(1, camp.fire / 6) : 0;
-    C.flame.visible = camp.lit;
+    const seenFire = shownFire(sim);          // a failing mind can see a fire that is out
+    const fuel = seenFire.lit ? Math.min(1, seenFire.fire / 6) : 0;
+    C.flame.visible = seenFire.lit;
     C.flame.scale.set(0.5 + fuel, 0.4 + fuel * 1.4 + Math.sin(sim.time * 400) * 0.06, 0.5 + fuel);
-    C.light.intensity = camp.lit ? 6 + fuel * 18 : 0;
+    C.light.intensity = seenFire.lit ? 6 + fuel * 18 : 0;
     C.light.distance = 10 + fuel * 18;
     C.pile.forEach((l, k) => (l.visible = k < camp.pile));
 
@@ -366,6 +369,17 @@ export function createRenderer(canvas) {
     // wind moves the tops
     const sway = windy ? Math.sin(performance.now() / 500) * 0.02 : 0;
     for (const c of B.crowns) c.rotation.z = sway;
+
+    // sticks that are not there: drawn exactly like the real ones
+    const ph = phantomSticks(sim);
+    B.phantoms ||= [];
+    ph.forEach((s, i) => {
+      let m = B.phantoms[i];
+      if (!m) { m = new THREE.Mesh(B.stickGeo, B.stickMat); scene.add(m); B.phantoms[i] = m; B.picks.push(m); }
+      m.visible = true; m.rotation.set(Math.PI / 2, 0, s.rot); m.position.set(s.x, 0.08, -s.y);
+      m.userData.pick = { kind: "stick", id: s.id };
+    });
+    for (let i = ph.length; i < B.phantoms.length; i++) B.phantoms[i].visible = false;
 
     // the target marker
     const t = view.target, M = B.marker;

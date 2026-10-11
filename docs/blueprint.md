@@ -100,11 +100,21 @@ title button. `#nosplash` skips it.
   home with the pair of hands that lit it. Every attempt spends one. You can
   always walk out alone.
 
+## Your own mind (`phantom.js`)
+
+Your meter drains like everyone's and nothing announces it. Below 0.55 the ground
+offers sticks that are not there (same ones every time you look, derived from
+seed, day and place); you can pick them up and the pack count rises, but only the
+SHOWN count. Walking into camp you "drop" them and the pile does not grow.
+Below 0.35, when the real fire dies at camp it seems to keep burning, shrinks on
+schedule and asks to be fed; feeding spends REAL wood and warms nothing. Others at
+camp tend the real fire, which ends it. Morning snaps shown back to true. No
+number or word for the meter is ever shown.
+
 ## Not built in 0.1, on purpose
 
 - The keystone morning (everyone vanishes and comes back in a new order).
-- Your own mind going: the player's hidden meter drains but changes nothing yet.
-  The design's fabricated fire and phantom wood belong here.
+- Further hallucinations: dead pylons seen as live, people who are not there.
 - Meta-progression across runs (points returned for who you bring home).
 - Seven's "four identical cairns" lesson is designed in: every landmark is drawn
   as what it is named, and no two in one area share a kind.

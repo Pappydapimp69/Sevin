@@ -4,6 +4,7 @@
 import { SAVE_VERSION, attach, snapshot } from "./sim.js";
 import { makeVoice, bendVoice } from "./voice.js";
 import { fillSkills } from "./skills.js";
+import { fresh as freshPhantom } from "./phantom.js";
 
 const RUN = "sevin:run", RUNS = "sevin:runs", SETTINGS = "sevin:settings";
 
@@ -23,6 +24,7 @@ export function loadRun() {
     const sim = JSON.parse(raw);
     if (sim.v !== SAVE_VERSION) return null;
     sim.msgs = []; sim.events = [];
+    sim.phantom ||= freshPhantom();
     // saves from before there were five skills: the new ones at 0 (a missing
     // one would be undefined, and arithmetic on it NaN, quietly, in the night)
     for (const m of [...sim.members, ...sim.missing]) m.skills = fillSkills(m.skills);

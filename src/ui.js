@@ -5,7 +5,7 @@
 // is released; closing it is always one click or Esc.
 
 import { clock, today, party, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
-import { accountFor, askableDays } from "./percept.js";
+import { accountFor, askableDays, shownWood, shownFire } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
 import { SKILLS, SKILL_LABEL, SKILL_WHAT, blankSkills, totalPoints } from "./skills.js";
@@ -333,9 +333,10 @@ export function createUI(api) {
     const d = today(sim);
     $("clock").textContent = sim.tutorial ? "Training camp" : `Day ${d} · ${clock(sim.time)}${isNight(sim.time) ? " · night" : ""}`;
     const bits = [];
-    if (sim.player.wood) bits.push(`carrying ${sim.player.wood} wood`);
+    const wood = shownWood(sim);
+    if (wood) bits.push(`carrying ${wood} wood`);
     if (sim.player.carryingKit) bits.push("the camp kit");
-    if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(sim.camp)}`);
+    if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(shownFire(sim))}`);
     $("carry").textContent = bits.join(" · ");
     $("compass").textContent = compass(sim.player.yaw);
 

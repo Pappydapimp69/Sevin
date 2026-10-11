@@ -12,6 +12,7 @@ import { WEATHERS } from "./chronicle.js";
 import { CELL, AREA_H, center } from "./world.js";
 import { bendVoice } from "./voice.js";
 import { SKILLS } from "./skills.js";
+import { reconcile } from "./phantom.js";
 
 export const NIGHT_DRAWS = 2 + MAX_SLOTS * 2 + 4;
 export const BEARINGS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
@@ -144,6 +145,9 @@ export function sleep(sim) {
     sim.members.push(fake);
     sim.members.sort((a, b) => a.slot - b.slot);
   }
+
+  // morning: what you saw snaps back to what was true
+  reconcile(sim);
 
   // the night's watch learns from it
   for (const w of watchers) practice(sim, w, "watch");
