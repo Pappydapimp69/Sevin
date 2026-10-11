@@ -32,6 +32,10 @@ export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather:
 export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp"));
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
+// Gathering is chopping deadwood: 45 minutes a chop, at most 3 pieces from
+// it; carrying skill gets the most out of each (1, then 2 at 2, 3 at 4).
+export const WOOD_CHOP_HOURS = 0.75;
+export const woodPerChop = (m) => Math.min(3, 1 + Math.floor((m.skills?.carry || 0) / 2));
 export const STRIKE_HOURS = 2;
 
 // ---------------------------------------------------------------------------
@@ -300,7 +304,8 @@ function tickMember(sim, m, dt, hours) {
   // They heard the whistle a moment ago; now they come.
   if (m.answerAt != null && sim.time >= m.answerAt) {
     m.answerAt = null;
-    m.task = "follow"; m.state = "idle"; m.site = null; m.chopId = null;
+    // with you for the rest of the day; their task waits for the morning
+    m.called = true; m.state = "idle"; m.site = null;
     sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y, voice: m.voice });
   }
   const hr = hourOf(sim.time);
@@ -308,10 +313,10 @@ function tickMember(sim, m, dt, hours) {
 
   // A shift ends at dusk: everyone with a field task walks home. With no
   // camp to walk home to, they come back to you.
-  if (lateDay && (m.task === "chop" || m.task === "gather")) {
+  if (lateDay && !m.called && (m.task === "chop" || m.task === "gather")) {
     // sent home once; someone already at camp is home
     if (sim.camp.up) { if (m.state !== "home" && dist(m, sim.camp) > 5) { m.state = "home"; m.goal = { x: sim.camp.x, y: sim.camp.y }; } }
-    else { m.task = "follow"; m.state = "idle"; }
+    else { m.called = true; m.state = "idle"; }       // no camp: tonight they stay with you
   }
 
   // Evening at camp: everyone not with you comes in to the fire, lights it
@@ -341,7 +346,9 @@ function tickMember(sim, m, dt, hours) {
     return;
   }
 
-  switch (m.task) {
+  // Called to you (a whistle, or no camp to go back to): with you until
+  // morning, when they go back to the task they were set.
+  switch (m.called ? "follow" : m.task) {
     case "follow": {
       const near = 2.2 + (m.slot % 3) * 0.9;
       const d = dist(m, p);
@@ -360,7 +367,7 @@ function tickMember(sim, m, dt, hours) {
       if (i < 0 || sim.deadfalls[i].done >= 1) { m.task = "camp"; m.chopId = null; m.state = "idle"; break; }
       const df = sim.world.deadfalls[i];
       const spot = { x: df.x + ((m.slot % 3) - 1) * 1.6, y: df.y - 2.2 };
-      if (!reachable(sim, m, spot)) { m.task = "follow"; break; }
+      if (!reachable(sim, m, spot)) { m.called = true; break; }
       if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.8)) {
         m.state = "work";
         chopAt(sim, i, m, hours);
@@ -373,10 +380,12 @@ function tickMember(sim, m, dt, hours) {
       if (!site) { m.task = "camp"; break; }
       if (m.state === "gather") {
         if (steer(sim, m, site.x, site.y, speedOf(m), dt, site.r * 0.6)) {
+          // chopping deadwood, at the world's pace; one chop, then home with it
           m.gathering = (m.gathering || 0) + hours;
-          if (m.gathering >= 1) {               // one load is one hour
+          m.workT = sim.time;
+          if (m.gathering >= WOOD_CHOP_HOURS) {
             m.gathering = 0;
-            m.load = 2 + Math.round(m.skills.carry);
+            m.load = woodPerChop(m);
             m.from = { x: site.x, y: site.y };
             practice(sim, m, "carry");
             m.state = "carry";
@@ -415,7 +424,7 @@ function tickMember(sim, m, dt, hours) {
     default: {
       // Keeping camp: stay at it, bring in deadwood from round about, keep
       // the fire fed if it is lit.
-      if (!sim.camp.up) { m.task = "follow"; break; }
+      if (!sim.camp.up) { m.called = true; break; }
       const spot = { x: sim.camp.x + Math.cos(m.slot * 1.3) * 3.5, y: sim.camp.y + Math.sin(m.slot * 1.3) * 3.5 };
       steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.6);
       if (sim.work && dist(m, p) < 7) helpWork(sim, m, hours);
@@ -525,7 +534,7 @@ function finishCampWork(sim, w) {
     note(sim, { verb: "struck", actor: "you", object: "camp", cls: "camp", x: sim.camp.x, y: sim.camp.y, withWhom: helpers });
     sim.camp = { up: false, x: sim.camp.x, y: sim.camp.y, pile: 0, fire: 0, lit: false };
     sim.player.carryingKit = true;
-    for (const m of party(sim)) if (m.task === "camp") m.task = "follow";
+    for (const m of party(sim)) if (m.task === "camp") m.called = true;
     say(sim, left > 0 ? "Camp is down. Some of the woodpile stays behind." : "Camp is down. You carry it.", "good");
     sim.events.push({ kind: "struck" });
   }
@@ -725,10 +734,11 @@ export function atFireTonight(sim, m) {
   const hr = hourOf(sim.time);
   // a field shift ends early so they are home by dark; once home, they stay
   const from = m.task === "chop" || m.task === "gather" ? DUSK - 1.5 : DUSK - 0.25;
-  return (hr >= from || hr < DAWN) && sim.camp.up && m.task !== "follow" && m.task !== "pitch";
+  return (hr >= from || hr < DAWN) && sim.camp.up && m.task !== "follow" && !m.called && m.task !== "pitch";
 }
 
 export function busy(sim, m) {
+  if (m.called) return false;
   if (m.task === "gather") return true;
   if (m.task === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
   return m.state === "home" && m.load > 0;
@@ -744,7 +754,7 @@ export function whistle(sim) {
   const heard = [];
   for (const m of party(sim)) {
     const d = dist(m, sim.player);
-    if (d > HEAR || m.task === "follow" || m.answerAt != null) continue;
+    if (d > HEAR || m.task === "follow" || m.called || m.answerAt != null) continue;
     // at night the fire holds them: a whistle from the dark does not
     if (busy(sim, m) || atFireTonight(sim, m) || m.sanity < 0.25) continue;
     const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
@@ -909,7 +919,7 @@ export function setDawnPlan(sim, tasks) {
   }
   for (const m of party(sim)) {
     const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "follow";
-    m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null;
+    m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null; m.called = false;
     note(sim, { verb: "assigned", actor: m.id, object: TASK_LABEL[t], cls: "task", x: sim.camp.x, y: sim.camp.y, key: "assigned:" + m.id });
   }
   sim.plan.pending = null;

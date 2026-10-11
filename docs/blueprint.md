@@ -52,6 +52,8 @@ different game. SEVIN has one game, so each module has one job.
 - **Tasks keep through the night.** After their shift (or dusk) nobody leaves
   the fire to work it, and a whistle from the dark does not pull them out; at
   first light they go back to it. The dawn plan opens on yesterday's work.
+  A whistle (or no camp to go back to) keeps someone with you for the rest of
+  that day only; their own task waits for the morning.
 - **Camp.** One at a time. Take down 1h, make 2h, helpers speed both. The
   woodpile belongs to the camp. The fire belongs to the camp, burns wood, and
   only shields the campsite at night.
@@ -92,7 +94,8 @@ different game. SEVIN has one game, so each module has one job.
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
-| carrying | load 2 + carry; camp work +10%/level | `sim.js` |
+| gathering | a 45 min chop, then home with at most 3 pieces (1 + carry/2) | `WOOD_CHOP_HOURS`, `woodPerChop` |
+| carrying | pieces per chop; camp work +10%/level | `sim.js` |
 | firecraft | each stick burns 1.5 h +20%/level; the watch uses its best hand | `burnHours` |
 | hands | stick 0.35 s, feed 1.2 s, light / pylon / rescue 3 s; moving lets go | `ACT_TIME` |
 | making camp | 5 person-hours (about 1 h with everyone), at the world's pace, drawn in stages | `PITCH_HOURS` |

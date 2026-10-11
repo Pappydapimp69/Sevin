@@ -143,6 +143,7 @@ export function sleep(sim) {
   for (const m of party(sim)) {
     // the task they had yesterday is the task they wake to
     m.watch = false; m.state = "idle"; m.load = 0; m.site = null;
+    m.called = false;                         // a new day: back to their own work
   }
 
   // Lost: the camp has moved two areas past them.

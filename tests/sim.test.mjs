@@ -187,12 +187,13 @@ t("a whistle: idle people in earshot come, after a moment; busy and far ones do 
   const r0 = sim.rngState;
   const heard = S.whistle(sim);
   assert.deepEqual(heard, [idle.id]);
-  assert.equal(idle.task, "camp", "came instantly");
+  assert.ok(!idle.called, "came instantly");
   assert.equal(sim.rngState, r0, "whistling drew from the run");
   S.tick(sim, 0.1, {});
-  assert.equal(idle.task, "camp", "came within a tenth of a second");
+  assert.ok(!idle.called, "came within a tenth of a second");
   for (let i = 0; i < 60; i++) S.tick(sim, 0.1, {});
-  assert.equal(idle.task, "follow", "never came");
+  assert.ok(idle.called, "never came");
+  assert.equal(idle.task, "camp", "the whistle overwrote their task");
   assert.equal(cutter.task, "chop");
   assert.equal(gatherer.task, "gather");
   assert.equal(far.task, "camp");
@@ -361,7 +362,7 @@ t("tasks keep through the night; after dark nobody leaves the fire; at first lig
   // a whistle from the dark does not pull anyone off the fire
   S.whistle(sim);
   for (let i = 0; i < 200; i++) S.tick(sim, 0.1, {});
-  for (const m of [cutter, gatherer, keeper]) assert.ok(near(m) && m.task !== "follow", m.name + " left the fire for a whistle");
+  for (const m of [cutter, gatherer, keeper]) assert.ok(near(m) && !m.called, m.name + " left the fire for a whistle");
   // morning: back to it
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
   sim.plan.duskDone = S.today(sim);
@@ -416,4 +417,52 @@ t("every task says which skill it leans on, and it is the one the sim uses", () 
   assert.equal(S.TASK_SKILL.camp, "fire");
   const ui = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
   assert.ok(ui.includes("TASK_SKILL[t]") && ui.includes('classList.toggle("used"'), "the plan screen does not show it");
+});
+
+t("gathering is chopping: 45 minutes a chop, at most 3 pieces back from it", () => {
+  for (const carry of [0, 2, 6]) {
+    const sim = S.createRun({ seed: 5, camp: true });
+    sim.plan.dawnDay = 1;
+    const [a] = S.party(sim);
+    a.skills.carry = carry;
+    S.setDawnPlan(sim, { [a.id]: "gather" });
+    let started = null, trips = [], pile = sim.camp.pile;
+    for (let i = 0; i < 20000 && S.hourOf(sim.time) < 16; i++) {
+      S.tick(sim, 0.1, {});
+      if (started == null && a.gathering > 0) started = sim.time;
+      if (started != null && a.load && trips.length === 0) trips.push({ took: sim.time - started, load: a.load });
+      if (sim.camp.pile > pile) { assert.ok(sim.camp.pile - pile <= 3, `a trip brought ${sim.camp.pile - pile}`); pile = sim.camp.pile; }
+    }
+    assert.ok(trips[0].took >= 0.7, `a chop took ${trips[0].took} h`);   // 45 minutes, not the constant: it is what is tested
+    assert.ok(trips[0].load >= 1 && trips[0].load <= 3);
+    assert.ok(sim.camp.pile - 3 <= 36, "too much wood for a day");
+  }
+});
+
+t("called to you by day, back to their own task the next morning", () => {
+  const sim = S.createRun({ seed: 5, camp: true });
+  sim.plan.dawnDay = 1;
+  const [a] = S.party(sim);
+  S.setDawnPlan(sim, { [a.id]: "camp" });
+  sim.player.x = sim.camp.x + 6; sim.player.y = sim.camp.y;
+  S.whistle(sim);
+  for (let i = 0; i < 100; i++) S.tick(sim, 0.1, {});
+  assert.ok(a.called);
+  assert.equal(a.task, "camp");
+  while (!S.isNight(sim.time)) { S.tick(sim, 0.1, {}); if (sim.plan.pending) S.setDuskPlan(sim, {}); }
+  sleep(sim);
+  assert.ok(!a.called, "still with you the next day");
+  assert.equal(a.task, "camp");
+});
+
+t("no camp at dusk: they spend the night with you and keep their task", () => {
+  const sim = S.createRun({ seed: 5 });
+  const [a] = S.party(sim);
+  S.setDawnPlan(sim, { [a.id]: "chop" });
+  for (let i = 0; i < 40000 && S.hourOf(sim.time) < 19; i++) S.tick(sim, 0.1, {});
+  assert.equal(a.task, "chop");
+  assert.ok(a.called);
+  sleep(sim);
+  assert.ok(!a.called);
+  assert.equal(a.task, "chop");
 });
