@@ -20,6 +20,12 @@ none of the code. Read `docs/blueprint.md` first.
 - **Tells are DERIVED, never authored.** `chronicle.js` bends one fact using
   values from the same day, and only facts the player witnessed.
 - **Negative-control every guard.** Break what it watches, watch it fail.
+- **Every instruction names the device in the player's hand.** Text carries
+  `{tokens}` (`keys.js`), filled per scheme when shown. Never write "press E".
+  `tests/keys.test.mjs` fails on a bare key name and on a binding that drifts
+  from its name.
+- The pad is sampled on its own 60 Hz timer, not per frame: at a low frame rate
+  a quick tap would otherwise fall between frames.
 - Only `save.js` touches `localStorage`, keys `sevin:*` (one origin per
   GitHub account on Pages).
 

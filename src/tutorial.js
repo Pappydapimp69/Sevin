@@ -25,12 +25,12 @@ const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const STEPS = [
   {
     id: "walk", verb: "move",
-    text: "Walk up to the camp. WASD to walk, mouse to look. Click the view to take the mouse (Esc gives it back). On a phone: left thumb walks, right thumb looks.",
+    text: "Walk up to the camp. Walk with {move}; look with {look}.",
     done: (s) => d(s.player, s.camp) < CAMP_R * 0.6,
   },
   {
     id: "sticks", verb: "act",
-    text: "Wood keeps you alive at night. Pick up three sticks around the clearing. Look at one and press E.",
+    text: "Wood keeps you alive at night. Pick up three sticks around the clearing: look at one and press {act}.",
     done: (s) => s.sticks.filter(Boolean).length >= 3,
   },
   {
@@ -40,37 +40,37 @@ export const STEPS = [
   },
   {
     id: "fire", verb: "act",
-    text: "Light the fire: stand at the ring of stones and press E. A fire only shields the camp itself, and only at night. Light reaches further than safety.",
+    text: "Light the fire: stand at the ring of stones and press {act}. A fire only shields the camp itself, and only at night. Light reaches further than safety.",
     done: (s) => s.camp.lit,
   },
   {
     id: "ask", verb: "ask",
-    text: "Look at Orla or Benet and press Q to ask about today. Out here, what someone remembers is the only evidence there is. Listen for anything that is not how it was.",
+    text: "Look at Orla or Benet and press {ask} to ask about today. Out here, what someone remembers is the only evidence there is. Listen for anything that is not how it was.",
     done: (s) => s.stats.asked >= 1,
   },
   {
     id: "call", verb: "call",
-    text: "Press F to call. Anyone who hears you drops what they are doing and comes.",
+    text: "Press {call} to call. Anyone who hears you drops what they are doing and comes.",
     done: (s) => s.members.some((m) => m.task === "follow"),
   },
   {
     id: "chop", verb: "act",
-    text: "North of camp a log lies across the trail. Anyone can chop it; more hands are faster. Stand at it and press E, then stand still. Time runs fast while you work. Moving stops it.",
+    text: "North of camp a log lies across the trail. Anyone can chop it; more hands are faster. Stand at it and press {act}, then stand still. Time runs fast while you work. Moving stops it.",
     done: (s) => s.deadfalls[0].done >= 1,
   },
   {
     id: "pylon", verb: "act",
-    text: "Past the log stands an old pylon, mossed over. A pylon takes two pairs of hands. Bring someone close and press E.",
+    text: "Past the log stands an old pylon, mossed over. A pylon takes two pairs of hands. Bring someone close and press {act}.",
     done: (s) => s.pylons[0].spent && s.pylons[0].litAt != null,
   },
   {
     id: "strike", verb: "camp",
-    text: "Last thing. Go back to camp and take it down: press C there. A camp moves with you, one at a time.",
+    text: "Last thing. Go back to camp and take it down: press {camp} there. A camp moves with you, one at a time.",
     done: (s) => !s.camp.up,
   },
   {
     id: "end", verb: null,
-    text: "That is the training. Out there, you set everyone's work at dawn, and at dusk you say who keeps watch. Then you sleep (Z). The woods are north. Somebody will not be who they were. You will have to ask.",
+    text: "That is the training. Out there, you set everyone's work at dawn, and at dusk you say who keeps watch. Then you sleep ({sleep}). The woods are north. Somebody will not be who they were. You will have to ask.",
     done: () => false,
   },
 ];

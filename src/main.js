@@ -10,6 +10,7 @@ import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
 import { chatter } from "./percept.js";
 import * as Save from "./save.js";
+import { createAudio } from "./audio.js";
 
 const canvas = document.getElementById("view");
 const renderer = createRenderer(canvas);
@@ -18,23 +19,41 @@ let paused = true;
 let lastSave = 0;
 let chatClock = 0;
 
-const input = createInput(canvas, (v) => verb(v));
+const audio = createAudio();
+const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => ui.rekey() });
+const prefs = Save.settings();
 const ui = createUI({
   paused: (on) => { paused = on; input.setEnabled(!on); },
+  setMenu: (m) => input.setMenu(m),
+  scheme: () => input.state.scheme,
+  settings: () => prefs,
+  applySettings: (st) => { applySettings(st); Save.saveSettings(st); },
   continueRun: () => start(Save.loadRun()),
   newRun: () => recruit(freshSeed()),
   tutorial: () => start(createTutorial()),
   toTitle: () => title(),
-  finishTutorial: () => {
-    const st = Save.settings(); st.tutorialDone = true; Save.saveSettings(st);
-    ui.tutorialEnd({ newRun: () => recruit(freshSeed()), toTitle: title });
-  },
+  finishTutorial: () => ui_finishTutorial(),
 });
+
+function applySettings(st) {
+  input.state.sens = st.sens;
+  audio.setVolume(st.volume);
+  renderer.camera.fov = st.fov; renderer.camera.updateProjectionMatrix();
+  document.documentElement.style.setProperty("--ui", { small: "13px", normal: "16px", large: "20px" }[st.ui] || "16px");
+}
+applySettings(prefs);
+// The browser starts sound only after a gesture.
+for (const ev of ["pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, () => audio.unlock(), { passive: true });
 
 // The seed is chosen once, at the start of a run, and everything after is a
 // function of it. (Choosing it from the clock is fine; DERIVING the world from
 // device state is what is forbidden.)
 const freshSeed = () => (Math.floor(Math.random() * 2 ** 31) ^ Date.now()) >>> 0;
+
+function ui_finishTutorial() {
+  prefs.tutorialDone = true; Save.saveSettings(prefs);
+  ui.tutorialEnd({ newRun: () => recruit(freshSeed()), toTitle: title });
+}
 
 function title() {
   sim = null;
@@ -97,8 +116,9 @@ function verb(v) {
   if (!sim || paused) return;
   switch (v) {
     case "act": {
+      if (sim.tutorial && tutorialStep(sim)?.id === "end") { ui_finishTutorial(); break; }
       const r = S.act(sim);
-      if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press C to walk out.");
+      if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press {camp} to walk out.");
       break;
     }
     case "ask": {
@@ -155,14 +175,14 @@ let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (paused) input.pollMenu();
   if (sim) {
     if (!paused) {
       const inp = input.read(dt);
       S.tick(sim, dt, inp);
+      audio.frame(sim, dt, Math.abs(inp.fwd) + Math.abs(inp.side) > 0.1, inp.sprint);
       if (sim.wantSleep) { sim.wantSleep = false; sleep(sim); Save.saveRun(sim); }
       if (sim.plan.pending && !ui.open) openPending();
-      for (const e of sim.events) if (e.kind === "over") finish(sim.over);
-      sim.events.length = 0;
       // someone says something now and then
       chatClock += dt;
       if (chatClock > 25 && !sim.tutorial) {
@@ -175,6 +195,9 @@ function frame(now) {
       }
       if (!sim.tutorial && now - lastSave > 15000) { lastSave = now; Save.saveRun(sim); }
     }
+    // events: sound, and the end of a run; drained whether or not paused
+    for (const e of sim.events) { audio.event(e, sim); if (e.kind === "over") finish(sim.over); }
+    sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;
     ui.hud(sim, { action: paused ? null : S.resolveAction(sim), target: paused ? null : lookTarget(), step });
     renderer.draw(sim, dt);
@@ -191,4 +214,4 @@ for (const b of document.querySelectorAll("#touchbar button")) b.addEventListene
 title();
 
 // for tests and the curious
-window.__sevin = { get sim() { return sim; }, S, verb, input, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { get sim() { return sim; }, S, verb, input, audio, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };

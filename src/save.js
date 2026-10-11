@@ -38,6 +38,7 @@ export function runs() {
 }
 
 export function settings() {
-  try { return { sens: 1, tutorialDone: false, ...JSON.parse(get(SETTINGS) || "{}") }; } catch { return { sens: 1, tutorialDone: false }; }
+  const base = { sens: 1, fov: 72, volume: 0.7, ui: "normal", tutorialDone: false };
+  try { return { ...base, ...JSON.parse(get(SETTINGS) || "{}") }; } catch { return base; }
 }
 export function saveSettings(s) { set(SETTINGS, JSON.stringify(s)); }

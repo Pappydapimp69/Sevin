@@ -7,6 +7,7 @@
 import { clock, today, party, TASKS, TASK_LABEL, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays } from "./percept.js";
 import { BEARINGS } from "./night.js";
+import { KEYS, keyed, glyph } from "./keys.js";
 
 const $ = (id) => document.getElementById(id);
 function h(tag, attrs = {}, ...kids) {
@@ -38,20 +39,70 @@ export function createUI(api) {
   const modal = $("modal");
   let open = null;
 
+  const K = (t) => keyed(t, api.scheme());
+  let onCancel = null;
+
   function show(name, ...content) {
     open = name;
+    onCancel = null;
     modal.replaceChildren(h("div", { class: "panel " + name }, ...content));
     modal.hidden = false;
     api.paused(true);
-    const first = modal.querySelector("button.primary") || modal.querySelector("button");
+    api.setMenu(menu);
+    const first = modal.querySelector("button.primary:not(:disabled)") || focusables()[0];
     first?.focus({ preventScroll: true });
   }
   function close() {
     open = null;
+    onCancel = null;
     modal.hidden = true;
     modal.replaceChildren();
+    api.setMenu(null);
     api.paused(false);
   }
+
+  // Menus are driven the same way by a pad, the arrow keys, a mouse or a
+  // finger: move focus spatially, confirm, cancel.
+  const focusables = () => [...modal.querySelectorAll("button:not(:disabled), select, input")].filter((e) => e.offsetParent !== null);
+  const menu = {
+    nav(dx, dy) {
+      const cur = document.activeElement;
+      if (dx && cur?.tagName === "SELECT") {
+        cur.selectedIndex = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + dx));
+        cur.dispatchEvent(new Event("change"));
+        return;
+      }
+      if (dx && cur?.type === "range") {
+        cur.value = String(Number(cur.value) + dx * Number(cur.step || 1));
+        cur.dispatchEvent(new Event("input"));
+        return;
+      }
+      const all = focusables();
+      if (!all.length) return;
+      if (!all.includes(cur)) { all[0].focus(); return; }
+      const a = cur.getBoundingClientRect(), ax = a.x + a.width / 2, ay = a.y + a.height / 2;
+      let best = null, bs = Infinity;
+      for (const el of all) {
+        if (el === cur) continue;
+        const b = el.getBoundingClientRect(), bx = b.x + b.width / 2, by = b.y + b.height / 2;
+        const along = (bx - ax) * dx + (by - ay) * dy;
+        if (along <= 2) continue;
+        const across = Math.abs((bx - ax) * dy) + Math.abs((by - ay) * dx);
+        const score = along + across * 2.5;
+        if (score < bs) { bs = score; best = el; }
+      }
+      // nothing that way: wrap through the list instead
+      if (!best) { const i = all.indexOf(cur); best = all[(i + (dx + dy > 0 ? 1 : -1) + all.length) % all.length]; }
+      best.focus({ preventScroll: false });
+    },
+    confirm() {
+      const cur = document.activeElement;
+      if (!modal.contains(cur)) { focusables()[0]?.focus(); return; }
+      if (cur.type === "checkbox") { cur.checked = !cur.checked; cur.dispatchEvent(new Event("change")); return; }
+      if (cur.tagName === "BUTTON") cur.click();
+    },
+    cancel() { if (onCancel) onCancel(); },
+  };
 
   // ---------------------------------------------------------------- title
   function title({ canContinue, record }) {
@@ -65,6 +116,7 @@ export function createUI(api) {
         btn("New walk", api.newRun, canContinue ? "" : "primary"),
         btn("Training camp", api.tutorial),
         btn("Controls", () => help(() => api.toTitle())),
+        btn("Settings", () => settings(() => api.toTitle())),
       ),
       runs ? h("p", { class: "small" }, `${runs} walk${runs > 1 ? "s" : ""}. ${home} brought home.`) : null,
     );
@@ -96,6 +148,7 @@ export function createUI(api) {
     paint();
     show("recruit", h("h2", {}, "Who walks in"), body,
       h("div", { class: "row" }, btn("Other names", onReroll), btn("Back", api.toTitle), btn("Walk in", () => onStart(team), "primary")));
+    onCancel = api.toTitle;
   }
 
   // ---------------------------------------------------------------- dawn plan
@@ -165,6 +218,8 @@ export function createUI(api) {
       out,
       h("div", { class: "row" }, btn("Done", close, "primary")),
     );
+    onCancel = close;
+    modal.querySelector("button.day")?.focus();
   }
 
   // ---------------------------------------------------------------- camp menu
@@ -182,23 +237,54 @@ export function createUI(api) {
     show("camp", h("h2", {}, "Camp"),
       h("p", {}, sim.camp.up ? `Camp is up. The fire is ${fireWords(sim.camp)}. The pile has ${sim.camp.pile}.` : `No camp. You carry ${sim.player.wood} wood${sim.player.carryingKit ? " and the kit" : ""}.`),
       h("div", { class: "stack" }, items), h("div", { class: "row" }, btn("Close", close)));
+    onCancel = close;
   }
 
-  // ---------------------------------------------------------------- pause / help
+  // ---------------------------------------------------------------- pause / help / settings
   function pause(v) {
     show("pause", h("h2", {}, "Paused"),
-      h("div", { class: "stack" }, btn("Resume", close, "primary"), btn("Controls", () => help(() => pause(v))), btn("Save and quit to title", v.quit)));
+      h("div", { class: "stack" }, btn("Resume", close, "primary"), btn("Controls", () => help(() => pause(v))),
+        btn("Settings", () => settings(() => pause(v))), btn("Save and quit to title", v.quit)));
+    onCancel = close;
   }
+
+  const CONTROL_ROWS = [
+    ["move", "walk"], ["look", "look"], ["run", "run"],
+    ["act", "use what is in front of you: pick up, chop, light, feed, a pylon"],
+    ["ask", "ask the person you are looking at"], ["call", "call everyone in earshot to you"],
+    ["camp", "camp: make it, take it down, plan the day, sleep"], ["sleep", "sleep (from dusk)"],
+    ["pause", "pause"], ["menu", "move around menus"], ["back", "back out of a menu"],
+  ];
   function help(back) {
-    show("help", h("h2", {}, "Controls"),
-      h("table", { class: "grid keys" }, [
-        ["W A S D / arrows", "walk, turn"], ["Mouse (click to grab)", "look"], ["Shift", "run"],
-        ["E or Space", "the thing in front of you: pick up, chop, light, feed"], ["Q", "ask the person you are looking at"],
-        ["F", "call everyone in earshot to you"], ["C", "camp: make, take down, plan, sleep"], ["Z", "sleep (from dusk)"],
-        ["Esc", "pause"],
-      ].map(([k, v]) => h("tr", {}, h("td", { class: "name" }, k), h("td", {}, v)))),
-      h("p", { class: "small" }, "Phone: left thumb walks, right thumb looks; buttons along the bottom."),
+    const sch = api.scheme();
+    const name = { keyboard: "Keyboard and mouse", gamepad: "Controller", touch: "Touch" };
+    show("help", h("h2", {}, "Controls · " + name[sch]),
+      h("table", { class: "grid keys" }, CONTROL_ROWS.map(([k, v]) => h("tr", {}, h("td", { class: "name" }, KEYS[sch][k]), h("td", {}, v)))),
+      h("p", { class: "small" }, "The game follows whatever you last touched: keyboard and mouse, a controller, or the screen."),
       h("div", { class: "row" }, btn("Back", back || close, "primary")));
+    onCancel = back || close;
+  }
+
+  function settings(back) {
+    const st = api.settings();
+    const row = (label, input) => h("tr", {}, h("td", { class: "name" }, label), h("td", {}, input));
+    const range = (key, min, max, step, fmt) => {
+      const out = h("span", { class: "small" }, " " + fmt(st[key]));
+      const r = h("input", { type: "range", min, max, step, value: st[key], "data-key": key, on: { input: (e) => { st[key] = Number(e.target.value); out.textContent = " " + fmt(st[key]); api.applySettings(st); } } });
+      return h("span", {}, r, out);
+    };
+    const sizes = ["small", "normal", "large"];
+    const sizeRow = h("span", {}, sizes.map((z) => btn(z, (e) => { st.ui = z; api.applySettings(st); for (const b of e.target.parentNode.children) b.classList.toggle("sel", b === e.target); }, "tiny" + (st.ui === z ? " sel" : ""))));
+    show("settings", h("h2", {}, "Settings"),
+      h("table", { class: "grid" },
+        row("Volume", range("volume", 0, 1, 0.1, (v) => Math.round(v * 100) + "%")),
+        row("Look speed", range("sens", 0.3, 3, 0.1, (v) => v.toFixed(1) + "x")),
+        row("Field of view", range("fov", 60, 100, 5, (v) => v + "°")),
+        row("Text size", sizeRow),
+      ),
+      h("div", { class: "row" }, btn("Back", back || close, "primary")));
+    onCancel = back || close;
+    modal.querySelector("input")?.focus();
   }
 
   // ---------------------------------------------------------------- end
@@ -221,6 +307,7 @@ export function createUI(api) {
 
   function confirm(text, yes, no) {
     show("confirm", h("p", {}, text), h("div", { class: "row" }, btn("No", () => { close(); no?.(); }), btn("Yes", () => { close(); yes(); }, "primary")));
+    onCancel = () => { close(); no?.(); };
   }
 
   // ---------------------------------------------------------------- HUD
@@ -238,9 +325,10 @@ export function createUI(api) {
     $("compass").textContent = compass(sim.player.yaw);
 
     // the prompt: the action in front of you, and who you are looking at
+    const sch = api.scheme();
     const lines = [];
-    if (view.action) lines.push(`[E] ${view.action.label}`);
-    if (view.target) lines.push(`[Q] Ask ${view.target.name}`);
+    if (view.action) lines.push(`${glyph("act", sch)} ${view.action.label}`);
+    if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
     $("prompt").textContent = lines.join("   ");
     $("work").textContent = sim.work ? workText(sim.work) : "";
     $("work").hidden = !sim.work;
@@ -248,7 +336,7 @@ export function createUI(api) {
     // messages
     for (; lastMsg < sim.msgs.length; lastMsg++) {
       const m = sim.msgs[lastMsg];
-      const el = h("div", { class: "msg " + m.kind }, m.text);
+      const el = h("div", { class: "msg " + m.kind, "data-raw": m.text }, K(m.text));
       log.append(el);
       setTimeout(() => el.classList.add("old"), 9000);
       while (log.children.length > 5) log.firstChild.remove();
@@ -257,19 +345,26 @@ export function createUI(api) {
     const tut = $("tut");
     tut.hidden = !view.step;
     if (view.step) {
-      if (tut.dataset.step !== view.step.id) {
-        tut.dataset.step = view.step.id;
-        tut.replaceChildren(...[h("b", {}, "Training · "), view.step.text, view.step.id === "end" ? h("div", {}, btn("Start the walk", api.finishTutorial, "primary")) : null].filter(Boolean));
+      const key = view.step.id + ":" + sch;
+      if (tut.dataset.step !== key) {
+        tut.dataset.step = key;
+        tut.replaceChildren(...[h("b", {}, "Training · "), K(view.step.text), view.step.id === "end" ? h("div", {}, btn(`Start the walk ${glyph("act", sch)}`, api.finishTutorial, "primary")) : null].filter(Boolean));
       }
     }
-    const touch = matchMedia("(pointer: coarse)").matches;
+    const touch = sch === "touch";
     $("touchbar").hidden = !touch;
+    $("cross").hidden = touch && !view.action && !view.target;
     log.style.bottom = touch ? "84px" : "16px";
   }
   function resetLog() { lastMsg = 0; log.replaceChildren(); }
+  // The device changed: everything already on screen is re-worded for it.
+  function rekey() {
+    for (const el of log.children) el.textContent = K(el.dataset.raw);
+    if (open === "help") help(onCancel);
+  }
   function hideHud() { $("hud").hidden = true; }
 
-  return { title, recruit, dawnPlan, duskPlan, ask, campMenu, pause, help, end, tutorialEnd, confirm, hud, close, resetLog, hideHud, get open() { return open; } };
+  return { title, recruit, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
 }
 
 const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];

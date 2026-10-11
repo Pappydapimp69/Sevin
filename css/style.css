@@ -4,6 +4,7 @@
   --ui: 16px;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; color: var(--ink);
   font: var(--ui)/1.45 Georgia, "Iowan Old Style", serif; }
 #view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
@@ -24,8 +25,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; col
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; text-shadow: none; pointer-events: auto; }
 #tut button { margin-top: 10px; }
 
-#touchbar { left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 8px; padding: 10px; pointer-events: auto; }
-#touchbar button { min-width: 64px; min-height: 48px; }
+#touchbar { left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 6px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); pointer-events: auto; }
+#touchbar button { flex: 1 1 0; max-width: 84px; min-width: 0; min-height: 48px; padding: 8px 4px; }
 
 #modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); padding: 16px; }
 #modal[hidden] { display: none; }
@@ -47,6 +48,10 @@ button:hover:not(:disabled), button:focus-visible { background: #364434; outline
 button.primary { background: #4a5e3a; border-color: #6e8a55; }
 button:disabled { opacity: .4; cursor: default; }
 button.tiny { padding: 2px 9px; }
+button.sel { border-color: var(--accent); background: #4a5e3a; }
+#modal :focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+input[type=range] { width: min(240px, 50vw); accent-color: #9fb878; vertical-align: middle; }
+.grid.keys .name { white-space: normal; }
 button.day { padding: 4px 12px; }
 .grid { border-collapse: collapse; width: 100%; }
 .grid td, .grid th { padding: 6px 8px; border-bottom: 1px solid #263026; text-align: left; font-weight: normal; }
@@ -59,5 +64,10 @@ select { font: inherit; background: #1d241c; color: var(--ink); border: 1px soli
 .account { margin-top: 12px; min-height: 120px; }
 .account p { margin: .3em 0; }
 .account .who { color: var(--dim); }
-@media (max-width: 600px) { :root { --ui: 14px; } .panel { padding: 14px; } .grid .skills .sk { margin-right: 10px; }
-.grid .skills { display: none; } }
+@media (max-width: 600px) {
+  .panel { padding: 14px; }
+  .grid .skills { display: none; }
+  #compass { top: 36px; font-size: .85em; }
+  #tut { top: 64px; }
+  #carry { max-width: 45vw; font-size: .85em; }
+}

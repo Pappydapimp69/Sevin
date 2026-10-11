@@ -30,19 +30,21 @@ python3 -m http.server
 
 Then open http://localhost:8000. Start with **Training camp**.
 
-| | |
-| --- | --- |
-| W A S D / arrows | walk, turn |
-| mouse (click the view) | look |
-| Shift | run |
-| E / Space | pick up, chop, light, feed, pylon |
-| Q | ask the person you are looking at |
-| F | call everyone in earshot |
-| C | camp: make, take down, plan, sleep |
-| Z | sleep (from dusk) |
-| Esc | pause |
+| | Keyboard and mouse | Controller | Touch |
+| --- | --- | --- | --- |
+| walk | W A S D | left stick | left thumb |
+| look | mouse (click the view) | right stick | right thumb |
+| run | Shift | LT / L3 | push the left thumb all the way |
+| use (pick up, chop, light, pylon) | E / Space | A | Use |
+| ask the person you face | Q | X | Ask |
+| call everyone in earshot | F | Y | Call |
+| camp: make, take down, plan, sleep | C | LB | Camp |
+| sleep (from dusk) | Z | RB | Sleep |
+| pause | Esc | Start | ☰ |
+| menus | arrows, Enter, Esc | D-pad / stick, A, B | tap |
 
-Phones: left thumb walks, right thumb looks, buttons along the bottom.
+On-screen instructions follow whichever device you used last. Settings (pause
+menu or title): volume, look speed, field of view, text size.
 
 ## Test
 
