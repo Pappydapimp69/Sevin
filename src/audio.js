@@ -7,7 +7,7 @@ import { notes, phrase, PLAYER_VOICE } from "./voice.js";
 
 export function createAudio() {
   let ctx = null, master = null, noise = null;
-  let wind = null, fire = null;
+  let wind = null, fire = null, bed = [];
   let volume = 0.7;
   let chopClock = 0, stepClock = 0, crackleClock = 0;
 
@@ -23,6 +23,32 @@ export function createAudio() {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     wind = loop(400, 0.0);
     fire = loop(900, 0.0, "bandpass");
+    // the title bed: two soft detuned drones, a fifth apart
+    bed = [55, 82.5].map((f, i) => {
+      const o = ctx.createOscillator(); o.type = "sine"; o.frequency.value = f; o.detune.value = i ? 5 : -4;
+      const g = ctx.createGain(); g.gain.value = 0;
+      o.connect(g); g.connect(master); o.start();
+      return g;
+    });
+  }
+
+  /**
+   * The audio stream begins here, on the player's first act: the studio
+   * sting (three soft rising notes) and the bed under the title (wind and a
+   * low drone). `titleBed(false)` lets the game's own wind take over.
+   */
+  function begin() {
+    unlock();
+    if (!ctx) return;
+    [[392, 0], [523.25, 0.32], [783.99, 0.64]].forEach(([f, d]) => tone(f, 1.8, 0.16, 0, 0, "sine", d));
+    titleBed(true);
+  }
+  function titleBed(on) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    wind.g.gain.setTargetAtTime(on ? 0.07 : 0, t, on ? 1.5 : 0.4);
+    wind.f.frequency.setTargetAtTime(420, t, 0.5);
+    for (const g of bed) g.gain.setTargetAtTime(on ? 0.05 : 0, t, on ? 2.5 : 0.6);
   }
 
   function loop(freq, gain, type = "lowpass") {
@@ -122,5 +148,5 @@ export function createAudio() {
 
   function setVolume(v) { volume = v; if (master) master.gain.value = v; }
 
-  return { unlock, frame, event, setVolume, call };
+  return { unlock, begin, titleBed, frame, event, setVolume, call, get running() { return !!ctx && ctx.state === "running"; } };
 }

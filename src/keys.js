@@ -22,6 +22,7 @@ export const KEYS = Object.freeze({
     menu: "the arrow keys and Enter",
     useit: "look at it and press E",
     askthem: "look at them and press Q",
+    begin: "Press any key, or click",
   }),
   gamepad: Object.freeze({
     move: "the left stick",
@@ -38,6 +39,7 @@ export const KEYS = Object.freeze({
     menu: "the D-pad and A",
     useit: "look at it and press A",
     askthem: "look at them and press X",
+    begin: "Press A",
   }),
   touch: Object.freeze({
     move: "your left thumb",
@@ -54,6 +56,7 @@ export const KEYS = Object.freeze({
     menu: "tapping",
     useit: "tap it (or face it and press Use)",
     askthem: "tap them (or face them and press Ask)",
+    begin: "Tap to begin",
   }),
 });
 

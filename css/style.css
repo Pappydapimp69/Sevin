@@ -32,6 +32,19 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; col
 #fadeClock { font-size: 3.2em; letter-spacing: .08em; color: #c9d6a0; opacity: .85; font-variant-numeric: tabular-nums; }
 #fadeDay { color: var(--dim); letter-spacing: .3em; margin-bottom: .4em; }
 #fadeNote { color: var(--dim); font-style: italic; margin-top: 1em; min-height: 1.4em; }
+#splash { position: fixed; inset: 0; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5em; text-align: center; cursor: pointer;
+  background: radial-gradient(ellipse at 50% 42%, #1b261a 0%, #0b0f0b 70%); color: var(--accent); transition: opacity .9s ease; }
+#splash[hidden] { display: none; }
+#splash.gone { opacity: 0; pointer-events: none; }
+#splash .mark { width: 84px; height: 84px; opacity: 0; animation: splashIn 1.4s ease .2s forwards; }
+#splash .studio { font-size: 1.5em; letter-spacing: .5em; text-indent: .5em; text-transform: uppercase; opacity: 0; animation: splashIn 1.4s ease .9s forwards; }
+#splash .presents { color: var(--dim); font-style: italic; margin-top: .6em; opacity: 0; animation: splashIn 1.2s ease 2s forwards; }
+#splash .game { font-size: 3.4em; letter-spacing: .35em; text-indent: .35em; color: #ece6d6; opacity: 0; animation: splashIn 1.4s ease 2.6s forwards; }
+#splash .prompt { margin-top: 2.2em; color: var(--dim); opacity: 0; animation: splashIn 1s ease 3.6s forwards, splashPulse 2.2s ease-in-out 4.6s infinite; }
+@keyframes splashIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes splashPulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { #splash .mark, #splash .studio, #splash .presents, #splash .game, #splash .prompt { animation: none; opacity: 1; } }
+@media (max-width: 600px) { #splash .studio { font-size: 1.1em; letter-spacing: .35em; } #splash .game { font-size: 2.4em; } }
 #modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); padding: 16px; }
 #modal[hidden] { display: none; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px 24px;

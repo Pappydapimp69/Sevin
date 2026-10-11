@@ -30,6 +30,15 @@ different game. SEVIN has one game, so each module has one job.
 | `src/input.js` | keys, mouse, touch -> one input object | DOM |
 | `src/main.js` | the loop | both |
 
+## The studio card
+
+The page opens on a Zane Paul Studios card (`splash.js`, `#splash`). It holds until
+the player acts (any key, any pad button, a click or tap) because browsers will
+not start sound before a gesture: that act calls `audio.begin()` (a three-note
+sting, wind and a low drone under the title), the card fades, and only then
+does the title show, so the release of a tap or a held key can never press a
+title button. `#nosplash` skips it.
+
 ## The run
 
 - **Map.** A trail south to north through five areas. Dense forest you cannot

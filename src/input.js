@@ -40,6 +40,7 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
   window.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" && e.target.type === "text")) return;
     setScheme("keyboard");
+    if (menu?.any) { e.preventDefault(); if (!e.repeat) menu.any(); return; }
     if (menu) {
       const nav = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.code];
       if (nav) { e.preventDefault(); menu.nav(nav[0], nav[1]); }
@@ -119,6 +120,7 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
     if (L.x || L.y || R.x || R.y || now.some(Boolean)) setScheme("gamepad");
     sticks = { x: L.x, y: L.y, rx: R.x, ry: R.y, run: now[6] || now[10] };
 
+    if (menu?.any) { if (edge.some(Boolean)) menu.any(); return; }
     if (menu) {
       const mag = Math.max(Math.abs(L.x), Math.abs(L.y));
       let dir = null;

@@ -11,6 +11,7 @@ import { stream, hash } from "./rng.js";
 import { chatter } from "./percept.js";
 import * as Save from "./save.js";
 import { createAudio } from "./audio.js";
+import { STUDIO, GAME, splashPrompt, skipSplash } from "./splash.js";
 
 const canvas = document.getElementById("view");
 const renderer = createRenderer(canvas);
@@ -20,7 +21,7 @@ let lastSave = 0;
 let chatClock = 0;
 
 const audio = createAudio();
-const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => ui.rekey(), onTap: (x, y) => tap(x, y) });
+const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => { ui.rekey(); paintSplash(); }, onTap: (x, y) => tap(x, y) });
 // Touch aims coarsely: wider reach and facing cone there (Brain: touch
 // tolerance, not an easier game).
 const tolerance = () => (input.state.scheme === "touch" ? 1.4 : 1);
@@ -60,6 +61,7 @@ function ui_finishTutorial() {
 
 function title() {
   sim = null;
+  audio.titleBed(true);
   ui.hideHud();
   ui.title({ canContinue: Save.hasRun(), record: Save.runs() });
 }
@@ -80,6 +82,7 @@ function recruit(seed) {
 function start(run) {
   if (!run) return title();
   sim = run;
+  audio.titleBed(false);
   ui.resetLog();
   input.state.yaw = sim.player.yaw;
   input.state.pitch = sim.player.pitch;
@@ -325,7 +328,37 @@ document.addEventListener("visibilitychange", () => { if (document.hidden && sim
 // touch buttons
 for (const b of document.querySelectorAll("#touchbar button")) b.addEventListener("click", (e) => { e.preventDefault(); verb(b.dataset.verb); });
 
-title();
+// ---------------------------------------------------------------- the studio card
+const splashEl = document.getElementById("splash");
+function paintSplash() {
+  document.getElementById("splashPrompt").textContent = splashPrompt(input.state.scheme);
+}
+let splashUp = false;
+function endSplash() {
+  if (!splashUp) return;
+  splashUp = false;
+  input.setMenu(null);
+  audio.begin();                      // the gesture that starts the sound
+  splashEl.classList.add("gone");
+  // The title waits for the card to fade. Shown at once, it would sit under
+  // the finger or the held key that dismissed the card and take its release
+  // (or its key repeat) as a press.
+  setTimeout(() => { splashEl.hidden = true; title(); }, 950);
+}
+function splash() {
+  document.getElementById("splashStudio").textContent = STUDIO;
+  document.getElementById("splashGame").textContent = GAME;
+  paintSplash();
+  splashEl.hidden = false;
+  splashUp = true;
+  hudHide();
+  // any key, any pad button, any tap
+  input.setMenu({ nav() {}, confirm: endSplash, cancel: endSplash, any: endSplash });
+  splashEl.addEventListener("click", endSplash);       // a finished tap or click, not the press
+}
+const hudHide = () => ui.hideHud();
+
+if (skipSplash(location.hash, location.search)) title(); else splash();
 
 // for tests and the curious
-window.__sevin = { get sim() { return sim; }, get scene() { return scene; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { get sim() { return sim; }, get scene() { return scene; }, get splashUp() { return splashUp; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
