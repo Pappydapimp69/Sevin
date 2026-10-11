@@ -8,8 +8,8 @@
 import { createRun, CAMP_R } from "./sim.js";
 
 export const TRAINEES = [
-  { name: "Orla", skills: { cut: 2, carry: 1, fire: 1 } },
-  { name: "Benet", skills: { cut: 1, carry: 2, fire: 0 } },
+  { name: "Orla", skills: { cut: 2, carry: 1, fire: 1, build: 1, watch: 0 } },
+  { name: "Benet", skills: { cut: 1, carry: 2, fire: 0, build: 0, watch: 1 } },
 ];
 
 export function createTutorial() {

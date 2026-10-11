@@ -3,6 +3,7 @@
 
 import { SAVE_VERSION, attach, snapshot } from "./sim.js";
 import { makeVoice, bendVoice } from "./voice.js";
+import { fillSkills } from "./skills.js";
 
 const RUN = "sevin:run", RUNS = "sevin:runs", SETTINGS = "sevin:settings";
 
@@ -22,6 +23,9 @@ export function loadRun() {
     const sim = JSON.parse(raw);
     if (sim.v !== SAVE_VERSION) return null;
     sim.msgs = []; sim.events = [];
+    // saves from before there were five skills: the new ones at 0 (a missing
+    // one would be undefined, and arithmetic on it NaN, quietly, in the night)
+    for (const m of [...sim.members, ...sim.missing]) m.skills = fillSkills(m.skills);
     // saves from before whistles: give everyone theirs, a fake its bent copy
     for (const ms of sim.missing) ms.voice ||= makeVoice(sim.seed, ms.slot, ms.id);
     for (const m of sim.members) {

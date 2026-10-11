@@ -5,15 +5,26 @@
 // calls. Draw unconditionally, use conditionally.
 
 import {
-  burnHours, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
+  burnHours, practice, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
   areaAt, shielded, canStand, reachable, note, say, DRAIN,
 } from "./sim.js";
 import { WEATHERS } from "./chronicle.js";
 import { CELL, AREA_H, center } from "./world.js";
 import { bendVoice } from "./voice.js";
+import { SKILLS } from "./skills.js";
 
 export const NIGHT_DRAWS = 2 + MAX_SLOTS * 2 + 4;
 export const BEARINGS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
+/**
+ * How likely the night is to pick this person, weighted by exposure: outside
+ * the camp, a dead fire, awake and sitting up, and a failing mind all raise it.
+ * Sitting up alone in the dark is exposed, but a watchful one is not: Watchfulness
+ * takes the watch's extra weight off, a quarter a level.
+ */
+export function takeWeight(m, { out, fireHeld }) {
+  return 1 + (out ? 3 : 0) + (fireHeld ? 0 : 1.5) + (m.watch ? Math.max(0, 1 - 0.25 * m.skills.watch) : 0) + (1 - m.sanity) * 2;
+}
 
 export function canSleep(sim) {
   return !sim.tutorial && !sim.over && !sim.plan.pending && (isNight(sim.time) || hourOf(sim.time) >= DUSK - 1);
@@ -86,16 +97,18 @@ export function sleep(sim) {
   const reals = real(sim);
   const fakesHeld = party(sim).filter((m) => m.fake).length;
   const area = areaAt(sim, camp.up ? camp.y : p.y);
+  // Watchfulness: those sitting up at the fire, awake and looking, make the
+  // night less likely to take anyone (3% a level, to a limit of 18%). Skill 0
+  // sits up and does no good, as before.
+  const watchSkill = watchers.reduce((s, m) => s + m.skills.watch, 0);
   const pressure =
     0.1 + (shielded(sim, area) ? 0 : 0.07 * area) + (fireHeld && !rough ? 0 : 0.25) + 0.08 * fakesHeld +
-    0.25 * (1 - reals.reduce((s, m) => s + m.sanity, 0) / Math.max(1, reals.length));
-  const P = d === 1 ? 0 : Math.min(0.85, pressure);
+    0.25 * (1 - reals.reduce((s, m) => s + m.sanity, 0) / Math.max(1, reals.length)) -
+    Math.min(0.18, 0.03 * watchSkill);
+  const P = d === 1 ? 0 : Math.max(0, Math.min(0.85, pressure));
   let taken = null;
   if (rTake < P && reals.length > 1) {
-    const weights = reals.map((m) => {
-      const out = !atCamp(sim, m);
-      return 1 + (out ? 3 : 0) + (fireHeld ? 0 : 1.5) + (m.watch ? 1 : 0) + (1 - m.sanity) * 2;
-    });
+    const weights = reals.map((m) => takeWeight(m, { out: !atCamp(sim, m), fireHeld }));
     const total = weights.reduce((a, b) => a + b, 0);
     let x = rWho * total;
     for (let i = 0; i < reals.length; i++) { x -= weights[i]; if (x < 0) { taken = reals[i]; break; } }
@@ -123,7 +136,7 @@ export function sleep(sim) {
     const fake = {
       // their whistle, with one thing slightly wrong
       id: fakeId, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
-      skills: { cut: Math.min(6, sk.cut + 1), carry: Math.min(6, sk.carry + 1), fire: Math.min(6, sk.fire + 1) },
+      skills: Object.fromEntries(SKILLS.map((k) => [k, Math.min(6, (sk[k] || 0) + 1)])),
       sanity: 1, x: taken.x, y: taken.y, task: taken.task, state: "idle", stateT: 0, load: 0, worked: 0,
       goal: null, home: false, gone: false, quiet: 0, trainee: false, since: d + 1,
     };
@@ -131,6 +144,9 @@ export function sleep(sim) {
     sim.members.push(fake);
     sim.members.sort((a, b) => a.slot - b.slot);
   }
+
+  // the night's watch learns from it
+  for (const w of watchers) practice(sim, w, "watch");
 
   // --- dawn -------------------------------------------------------------------
   // Dawn is an exact time. Adding hours to a float can land a hair short of it,

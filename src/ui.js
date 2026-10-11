@@ -8,6 +8,7 @@ import { clock, today, party, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite
 import { accountFor, askableDays } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
+import { SKILLS, SKILL_LABEL, SKILL_WHAT, blankSkills, totalPoints } from "./skills.js";
 
 const $ = (id) => document.getElementById(id);
 function h(tag, attrs = {}, ...kids) {
@@ -23,15 +24,6 @@ function h(tag, attrs = {}, ...kids) {
 }
 const btn = (label, fn, cls = "") => h("button", { class: cls, disabled: cls.includes("disabled"), on: { click: fn } }, label);
 
-const SKILLS = ["cut", "carry", "fire"];
-const SKILL_LABEL = { cut: "Cutting", carry: "Carrying", fire: "Firecraft" };
-// What each skill DOES, in play. Kept next to the numbers in sim.js:
-// chopRate (+18%/level), load 2+carry and camp work +10%/level, burnHours +20%/level.
-const SKILL_WHAT = {
-  cut: "Chops through a deadfall faster. Deadfalls block the trail north.",
-  carry: "Makes a bigger haul likelier when gathering (1 to 3 pieces an hour's chop), and makes or takes down camp faster.",
-  fire: "Makes each stick they put on the fire burn longer. A watch who knows fires gets through the night on less wood.",
-};
 const dots = (n) => "●".repeat(Math.max(0, Math.round(n))) + "○".repeat(Math.max(0, 6 - Math.round(n)));
 
 export function fireWords(camp) {
@@ -132,17 +124,19 @@ export function createUI(api) {
   // ---------------------------------------------------------------- recruit
   function recruit(names, onStart, onReroll) {
     const POINTS = 10;
-    const team = names.map((name) => ({ name, skills: { cut: 0, carry: 0, fire: 0 } }));
-    const left = () => POINTS - team.reduce((s, m) => s + m.skills.cut + m.skills.carry + m.skills.fire, 0);
+    const team = names.map((name) => ({ name, skills: blankSkills() }));
+    const left = () => POINTS - team.reduce((s, m) => s + totalPoints(m.skills), 0);
     const body = h("div");
     function paint() {
       body.replaceChildren(
         h("p", {}, `Five people walk in with you. Spend ${POINTS} points on what they are good at. Points left: `, h("b", { id: "pts" }, left())),
-        h("table", { class: "grid" },
-          h("tr", {}, h("th", {}, ""), ...SKILLS.map((k) => h("th", {}, SKILL_LABEL[k], h("div", { class: "what" }, SKILL_WHAT[k])))),
+        // what each skill is for, once, above the table (five will not fit under their headings)
+        h("dl", { class: "skillkey" }, SKILLS.flatMap((k) => [h("dt", {}, SKILL_LABEL[k]), h("dd", {}, SKILL_WHAT[k])])),
+        h("table", { class: "grid picks" },
+          h("tr", {}, h("th", {}, ""), ...SKILLS.map((k) => h("th", {}, SKILL_LABEL[k]))),
           ...team.map((m, i) => h("tr", {},
             h("td", { class: "name" }, m.name),
-            ...SKILLS.map((k) => h("td", {},
+            ...SKILLS.map((k) => h("td", { "data-label": SKILL_LABEL[k] },
               btn("−", () => { if (m.skills[k] > 0) { m.skills[k]--; paint(); } }, "tiny"),
               h("span", { class: "val", "data-k": k, "data-i": i }, m.skills[k]),
               btn("+", () => { if (left() > 0 && m.skills[k] < 5) { m.skills[k]++; paint(); } }, "tiny"),
@@ -171,7 +165,7 @@ export function createUI(api) {
       const sel = h("select", { "data-id": m.id, on: { change: (e) => { choice[m.id] = e.target.value; mark(); } } },
         ...allowed.map((t) => h("option", { value: t, selected: choice[m.id] === t }, taskText(t))));
       mark();
-      return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel), h("td", { class: "skills" }, skillCells));
+      return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel), h("td", { class: "skills" }, h("div", { class: "skillrow" }, skillCells)));
     });
     const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[sim.call.bearing]}.`) : null;
     show("plan",
@@ -185,7 +179,7 @@ export function createUI(api) {
       call,
       h("table", { class: "grid" }, rows),
       h("p", { class: "small" }, "On the deadfall (Cutting): they cut until their shift ends. Gathering wood (Carrying): they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
-        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Carrying): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing. " +
+        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Building): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing. " +
         "Using their judgement: each hour they do what the team needs most that they are good for (make camp, keep the pile up, cut, keep the fire), and spread out."),
       h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
     );
@@ -201,10 +195,11 @@ export function createUI(api) {
         h("div", { class: "row" },
           btn(sim.camp.lit ? "Feed the fire" : "Light the fire", () => { onFeed(); paint(); }),
         ),
-        h("p", {}, "Who sits up with the fire? A watch keeps it fed from the pile, and is awake."),
+        h("p", {}, "Who sits up with the fire? A watch keeps it fed from the pile and is awake; the more watchful they are (" + SKILL_LABEL.watch + "), the less likely the night takes anyone."),
         h("table", { class: "grid" }, party(sim).map((m) => h("tr", {},
           h("td", { class: "name" }, m.name),
           h("td", {}, h("label", {}, h("input", { type: "checkbox", "data-id": m.id, checked: !!watch[m.id], on: { change: (e) => (watch[m.id] = e.target.checked) } }), " watch")),
+          h("td", { class: "skills" }, h("div", { class: "skillrow" }, h("span", { class: "sk used", title: SKILL_LABEL.watch }, "watchful " + dots(m.skills.watch)))),
         ))),
       );
     }

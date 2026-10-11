@@ -78,17 +78,29 @@ button.day { padding: 4px 12px; }
 .grid .val { display: inline-block; width: 1.6em; text-align: center; }
 .grid .skills .sk { margin-right: 10px; }
 .grid .skills .sk.used { color: var(--accent); font-weight: bold; }
-.grid .skills { font-size: .8em; color: var(--dim); white-space: nowrap; }
+.grid .skills { font-size: .8em; color: var(--dim); }
+.skillrow { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+.skillkey { margin: 0 0 12px; font-size: .86em; display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; }
+.skillkey dt { color: var(--accent); }
+.skillkey dd { margin: 0; color: var(--dim); }
+.grid.picks th { font-size: .82em; }
 select { font: inherit; background: #1d241c; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
 .account { margin-top: 12px; min-height: 120px; }
 .account p { margin: .3em 0; }
 .account .who { color: var(--dim); }
 @media (max-width: 600px) {
   .panel { padding: 14px; }
-  .recruit .grid td { white-space: nowrap; padding: 6px 2px; }
-  .recruit button.tiny { padding: 4px 7px; }
-  .recruit .grid .val { width: 1.1em; }
-  .recruit .grid td.name { white-space: normal; font-size: .9em; }
+  /* five skills: each person becomes a card, three skills to a row */
+  .grid.picks, .grid.picks tbody { display: block; }
+  .grid.picks tr:first-child { display: none; }
+  .grid.picks tr { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 6px; padding: 8px 0; border-bottom: 1px solid #263026; }
+  .grid.picks td { display: block; border: 0; padding: 2px 0; white-space: nowrap; }
+  .grid.picks td.name { grid-column: 1 / -1; font-size: 1em; }
+  .grid.picks td[data-label]::before { content: attr(data-label); display: block; font-size: .72em; color: var(--dim); }
+  .recruit .row { position: sticky; bottom: -14px; background: var(--panel); padding: 10px 0 14px; margin: 8px 0 -14px; border-top: 1px solid #263026; }
+  .recruit button.tiny { padding: 4px 8px; }
+  .recruit .grid .val { width: 1.3em; }
+  .skillkey { grid-template-columns: 1fr; gap: 0; } .skillkey dd { margin-bottom: 6px; }
   .grid .skills { display: none; }
   #compass { top: 36px; font-size: .85em; }
   #tut { top: 64px; }

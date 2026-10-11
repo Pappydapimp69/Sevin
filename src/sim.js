@@ -13,6 +13,8 @@ import { makeRoster } from "./names.js";
 import { generateWorld, tutorialWorld, CELL, AREA_H, toCell, center, open, placeName } from "./world.js";
 import { record, WEATHERS } from "./chronicle.js";
 import { makeVoice } from "./voice.js";
+import { SKILLS, fillSkills, TASK_SKILL } from "./skills.js";
+export { TASK_SKILL };
 
 export const SAVE_VERSION = 1;
 export const SEC_PER_HOUR = 20;      // real seconds per game hour
@@ -26,9 +28,6 @@ export const REACH = 3;              // metres: hands' reach
 export const HEAR = 25;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
 export const TASKS = ["auto", "follow", "chop", "gather", "camp", "pitch"];
-// Which skill a task leans on (the one that makes it go faster or further).
-// "with you" lends a hand to whatever YOU are doing, so it has none of its own.
-export const TASK_SKILL = { chop: "cut", gather: "carry", pitch: "carry", camp: "fire", follow: null, auto: null };
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.
@@ -51,7 +50,7 @@ export const STRIKE_HOURS = 2;
 // ---------------------------------------------------------------------------
 
 /**
- * A new run. `party` is [{name, skills:{cut,carry,fire}}] from recruitment, or
+ * A new run. `party` is [{name, skills:{...SKILLS}}] from recruitment, or
  * omitted to compose one from the seed.
  */
 /**
@@ -64,7 +63,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
   const r = () => rng.next();
   if (!party) {
     const names = makeRoster(r, 5);
-    party = names.map((name, i) => ({ name, skills: { cut: [3, 1, 1, 2, 1][i], carry: [0, 2, 1, 1, 2][i], fire: [0, 0, 1, 0, 1][i] } }));
+    party = names.map((name, i) => ({ name, skills: { cut: [3, 1, 1, 2, 1][i], carry: [0, 2, 1, 1, 2][i], fire: [0, 0, 1, 0, 1][i], build: [0, 1, 2, 0, 1][i], watch: [1, 0, 0, 2, 1][i] } }));
   }
   const camp = world.startCamp;
   const sim = {
@@ -94,7 +93,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
   };
   sim.chron[1].weather = sim.weather[1];
   party.forEach((p, i) => {
-    sim.members.push(newMember(sim, p.name, i, { ...p.skills }, false, camp.x + Math.cos(i * 1.25) * 4, camp.y + Math.sin(i * 1.25) * 4));
+    sim.members.push(newMember(sim, p.name, i, fillSkills(p.skills), false, camp.x + Math.cos(i * 1.25) * 4, camp.y + Math.sin(i * 1.25) * 4));
   });
   for (const m of sim.members) m.task = "follow";
   if (!campUp) {
@@ -438,7 +437,7 @@ function tickMember(sim, m, dt, hours) {
       const spot = { x: P.x + Math.cos(m.slot * 1.3) * 2.5, y: P.y + Math.sin(m.slot * 1.3) * 2.5 };
       if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.8)) {
         m.workT = sim.time;
-        P.left -= hours * (1 + 0.1 * m.skills.carry);
+        P.left -= hours * (1 + 0.15 * m.skills.build);
         if (!P.hands.includes(m.id)) P.hands.push(m.id);
         if (P.left <= 0) pitchDone(sim);
       }
@@ -467,7 +466,7 @@ function tickMember(sim, m, dt, hours) {
 
 // Skills grow with use, for everyone, with noise. A fake grows faster, and the
 // faster step hides inside ordinary growth: suspicious, never certain.
-function practice(sim, m, k) {
+export function practice(sim, m, k) {
   if (m === "you") return;
   const n = stream(hash("grow", sim.seed, m.id, k, Math.floor(sim.time * 4)))();
   m.skills[k] = Math.min(6, m.skills[k] + (m.fake ? 0.12 : 0.06) + (n - 0.5) * 0.04);
@@ -505,12 +504,12 @@ function helpWork(sim, m, hours) {
   if (w.kind === "chop") chopAt(sim, w.id, m, hours);
   else if (w.kind === "make" && sim.pitch) {
     if (dist(m, sim.pitch) > 7) return;
-    sim.pitch.left -= hours * (1 + 0.1 * m.skills.carry);
+    sim.pitch.left -= hours * (1 + 0.15 * m.skills.build);
     sim.pitch.hands.includes(m.id) || sim.pitch.hands.push(m.id);
     m.workT = sim.time;
     if (sim.pitch.left <= 0) pitchDone(sim);
   } else if (w.kind === "strike") {
-    w.left -= hours * (1 + 0.1 * m.skills.carry);
+    w.left -= hours * (1 + 0.15 * m.skills.build);
     (w.helpers ||= []).includes(m.id) || w.helpers.push(m.id);
     m.workT = sim.time;
   }
@@ -890,7 +889,7 @@ export function walkOut(sim) {
 function rescue(sim, id) {
   const ms = sim.missing.find((x) => x.id === id);
   ms.found = true;
-  const m = newMember(sim, ms.name, ms.slot, { ...ms.skills }, false, ms.x, ms.y);
+  const m = newMember(sim, ms.name, ms.slot, fillSkills(ms.skills), false, ms.x, ms.y);
   m.id = ms.id; sim.nextId = Math.max(sim.nextId, ms.id + 1);
   m.voice = ms.voice;                          // their own whistle, unbent
   m.sanity = Math.max(0.2, ms.sanity);
@@ -959,7 +958,7 @@ function taskDone(m, next) {
 export function autoScores(sim, m) {
   const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
   const s = {};
-  if (!sim.camp.up) s.pitch = 10 + m.skills.carry * 0.5 - others("pitch") * 3;
+  if (!sim.camp.up) s.pitch = 10 + m.skills.build * 0.5 - others("pitch") * 3;
   if (sim.camp.up || sim.pitch) s.gather = (sim.camp.up ? Math.max(0, 7 - sim.camp.pile) : 3) + m.skills.carry * 0.5 - others("gather") * 1.5;
   const i = currentDeadfall(sim);
   if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
@@ -994,6 +993,7 @@ function pitchDone(sim) {
   if (sim.work?.kind === "make") sim.work = null;
   sim.camp = { up: true, x: P.x, y: P.y, pile: carried + yours, fire: 0, lit: false };
   sim.player.carryingKit = false;
+  for (const id of P.hands) { const h = byId(sim, id); if (h) practice(sim, h, "build"); }
   const [first, ...rest] = P.hands;
   note(sim, { verb: "pitched", actor: first, object: "camp", cls: "camp", x: P.x, y: P.y, withWhom: rest });
   for (const m of party(sim)) if (m.task === "pitch") { m.task = "camp"; m.state = "idle"; }

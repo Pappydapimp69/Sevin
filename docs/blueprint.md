@@ -116,7 +116,9 @@ title button. `#nosplash` skips it.
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
 | gathering | an hour's chop, then home with 1-3 pieces; carrying makes more likely | `WOOD_CHOP_HOURS`, `woodPerChop` |
-| carrying | pieces per chop; camp work +10%/level | `sim.js` |
+| carrying | pieces per chop; wood carried when moving camp | `woodPerChop` |
+| building | camp up and down +15%/level | `sim.js` |
+| watchfulness | on watch: night's take chance -3%/level (cap 18%), watch's extra exposure -25%/level | `night.js` |
 | firecraft | each stick burns 1.5 h +20%/level; the watch uses its best hand | `burnHours` |
 | hands | stick 0.35 s, feed 1.2 s, light / pylon / rescue 3 s; moving lets go | `ACT_TIME` |
 | making camp | 5 person-hours (about 1 h with everyone), at the world's pace, drawn in stages | `PITCH_HOURS` |
