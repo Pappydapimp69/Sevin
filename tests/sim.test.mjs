@@ -331,3 +331,43 @@ t("keeping camp brings in wood by day", () => {
   for (let i = 0; i < 2000; i++) S.tick(sim, 0.1, {});
   assert.ok(sim.camp.pile >= 1);
 });
+
+t("tasks keep through the night; after dark nobody leaves the fire; at first light they go back to it", () => {
+  const sim = S.createRun({ seed: 5, camp: true });
+  sim.plan.dawnDay = 1;
+  sim.camp.pile = 8;
+  // camp a short walk south of the deadfall, on the trail
+  const df = sim.world.deadfalls[0], cy = Math.floor(df.y / 2) - 8;
+  sim.camp.x = Math.round(sim.world.trailX[cy]) * 2 + 1; sim.camp.y = cy * 2 + 1;
+  const [cutter, gatherer, keeper] = S.party(sim);
+  S.setDawnPlan(sim, { [cutter.id]: "chop", [gatherer.id]: "gather", [keeper.id]: "camp" });
+  sim.player.x = sim.world.start.x; sim.player.y = sim.world.start.y;      // you are away
+  const near = (m) => Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 5;
+  let maxAway = 0;
+  const home = new Set();
+  for (let i = 0; i < 40000 && S.hourOf(sim.time) < 23; i++) {
+    S.tick(sim, 0.1, {});
+    if (S.hourOf(sim.time) < 16.4) continue;
+    if (S.hourOf(sim.time) > 17.25 && S.hourOf(sim.time) < 17.3) assert.equal(cutter.state, "sit", "home from the shift but not resting at the fire");
+    for (const m of [cutter, gatherer, keeper]) {
+      const d = Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y);
+      if (d < 5) home.add(m);
+      if (home.has(m)) maxAway = Math.max(maxAway, d);   // once in, do they go back out?
+    }
+  }
+  assert.equal(cutter.task, "chop"); assert.equal(gatherer.task, "gather"); assert.equal(keeper.task, "camp");
+  for (const m of [cutter, gatherer, keeper]) assert.ok(near(m), m.name + " is out in the dark");
+  assert.ok(maxAway < 8, `someone left the fire after their shift: ${maxAway.toFixed(1)} m`);
+  // a whistle from the dark does not pull anyone off the fire
+  S.whistle(sim);
+  for (let i = 0; i < 200; i++) S.tick(sim, 0.1, {});
+  for (const m of [cutter, gatherer, keeper]) assert.ok(near(m) && m.task !== "follow", m.name + " left the fire for a whistle");
+  // morning: back to it
+  sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
+  sim.plan.duskDone = S.today(sim);
+  sleep(sim);
+  assert.equal(cutter.task, "chop", "the task did not survive the night");
+  sim.plan.pending = null;
+  for (let i = 0; i < 1500; i++) S.tick(sim, 0.1, {});
+  assert.ok(!near(cutter), "the cutter did not go back out in the morning");
+});

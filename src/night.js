@@ -139,8 +139,8 @@ export function sleep(sim) {
   sim.weather[nd] = WEATHERS[Math.floor(rWeather * WEATHERS.length)];
   sim.chron[nd] = { weather: sim.weather[nd], facts: [] };
   for (const m of party(sim)) {
+    // the task they had yesterday is the task they wake to
     m.watch = false; m.state = "idle"; m.load = 0; m.site = null;
-    if (m.task !== "follow") m.task = "camp";
   }
 
   // Lost: the camp has moved two areas past them.

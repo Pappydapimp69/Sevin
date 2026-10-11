@@ -156,7 +156,7 @@ export function createUI(api) {
     const choice = {};
     const allowed = tasksNow(sim);
     const rows = party(sim).map((m) => {
-      choice[m.id] = allowed.includes(m.task) && m.task !== "camp" ? m.task : "follow";
+      choice[m.id] = allowed.includes(m.task) ? m.task : "follow";      // yesterday's work, unless you change it
       const sel = h("select", { "data-id": m.id, on: { change: (e) => (choice[m.id] = e.target.value) } },
         ...allowed.map((t) => h("option", { value: t, selected: choice[m.id] === t }, TASK_LABEL[t])));
       return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel),

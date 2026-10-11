@@ -49,6 +49,9 @@ different game. SEVIN has one game, so each module has one job.
   if there is wood, keeps it going and waits up for you. Awake after dark wears
   like night. The night is planned when you get back.
 - **Keeping camp** (a task): stay at camp, bring in deadwood, keep the fire.
+- **Tasks keep through the night.** After their shift (or dusk) nobody leaves
+  the fire to work it, and a whistle from the dark does not pull them out; at
+  first light they go back to it. The dawn plan opens on yesterday's work.
 - **Camp.** One at a time. Take down 1h, make 2h, helpers speed both. The
   woodpile belongs to the camp. The fire belongs to the camp, burns wood, and
   only shields the campsite at night.

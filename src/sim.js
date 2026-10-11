@@ -306,15 +306,17 @@ function tickMember(sim, m, dt, hours) {
   // A shift ends at dusk: everyone with a field task walks home. With no
   // camp to walk home to, they come back to you.
   if (lateDay && (m.task === "chop" || m.task === "gather")) {
-    if (sim.camp.up) { m.state = "home"; m.goal = { x: sim.camp.x + (m.slot - 2) * 1.5, y: sim.camp.y - 2 }; }
+    // sent home once; someone already at camp is home
+    if (sim.camp.up) { if (m.state !== "home" && dist(m, sim.camp) > 5) { m.state = "home"; m.goal = { x: sim.camp.x, y: sim.camp.y }; } }
     else { m.task = "follow"; m.state = "idle"; }
   }
 
   // Evening at camp: everyone not with you comes in to the fire, lights it
   // if nobody has, keeps it going, and waits up for you. Awake after dark is
   // night to the mind (drain() counts it).
-  const evening = hr >= DUSK - 0.25 || hr < DAWN;
-  if (evening && sim.camp.up && m.task !== "follow" && m.task !== "pitch" && m.state !== "home") {
+  // Their task keeps through the night, but after dark nobody leaves the
+  // fire to work it; they take it up again at first light.
+  if (atFireTonight(sim, m) && m.state !== "home") {
     const spot = { x: sim.camp.x + Math.cos(m.slot * 1.25 + 0.4) * 2.2, y: sim.camp.y + Math.sin(m.slot * 1.25 + 0.4) * 2.2 };
     if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.5)) {
       m.state = "sit";
@@ -331,8 +333,7 @@ function tickMember(sim, m, dt, hours) {
         note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from?.x ?? m.x, y: m.from?.y ?? m.y });
         m.load = 0;
       }
-      m.state = "idle";
-      if (lateDay) m.task = "camp";
+      m.state = "idle";                     // home for the night; the task keeps
     }
     return;
   }
@@ -709,6 +710,14 @@ export function strikeCamp(sim) {
  * Busy: on a shift. Cutting at the deadfall, out for wood or carrying a load
  * home. A whistle does not pull anyone off work they were set at dawn.
  */
+/** After dusk, with a camp up, everyone not with you holds to the fire. */
+export function atFireTonight(sim, m) {
+  const hr = hourOf(sim.time);
+  // a field shift ends early so they are home by dark; once home, they stay
+  const from = m.task === "chop" || m.task === "gather" ? DUSK - 1.5 : DUSK - 0.25;
+  return (hr >= from || hr < DAWN) && sim.camp.up && m.task !== "follow" && m.task !== "pitch";
+}
+
 export function busy(sim, m) {
   if (m.task === "gather") return true;
   if (m.task === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
@@ -726,7 +735,8 @@ export function whistle(sim) {
   for (const m of party(sim)) {
     const d = dist(m, sim.player);
     if (d > HEAR || m.task === "follow" || m.answerAt != null) continue;
-    if (busy(sim, m) || m.sanity < 0.25) continue;
+    // at night the fire holds them: a whistle from the dark does not
+    if (busy(sim, m) || atFireTonight(sim, m) || m.sanity < 0.25) continue;
     const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
     m.answerAt = sim.time + 0.04 + d * 0.0025 + jitter * 0.03;   // ~1-4 s
     heard.push(m.id);
@@ -901,7 +911,6 @@ export function setDuskPlan(sim, watch) {
   for (const m of party(sim)) {
     m.watch = !!watch[m.id];
     if (m.watch) note(sim, { verb: "watched", actor: m.id, object: "fire", cls: "fire", x: sim.camp.x, y: sim.camp.y });
-    if (m.task !== "follow") m.task = "camp";
   }
   sim.plan.pending = null;
   sim.plan.duskDone = today(sim);
