@@ -169,7 +169,9 @@ export function createUI(api) {
         ? `The woodpile has ${sim.camp.pile}. Set the day's work. Out there you can only whistle people back to you.`
         : sim.pitch
           ? `Camp is still going up by the ${sim.pitch.place}. Set the day's work.`
-          : `There is no camp yet. Somebody has to make one before dark, or everyone sleeps in the open. ` +
+          : sim.campStruck
+            ? `There is no camp. You took it down, so only you can put it up again: use ${KEYS[api.scheme()].camp}, wherever you stand, before dark or everyone sleeps in the open.`
+            : `There is no camp yet. Somebody has to make one before dark, or everyone sleeps in the open. ` +
             `Whoever you set to making camp takes the kit to the ${pitchSite(sim)?.kind || "nearest clearing"} and puts it up. Or put it up yourself with ${KEYS[api.scheme()].camp}, wherever you stand.`)),
       call,
       h("table", { class: "grid" }, rows),

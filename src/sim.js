@@ -32,7 +32,8 @@ export const TASKS = ["auto", "follow", "chop", "gather", "camp", "pitch"];
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.
-export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp"));
+// A camp you have taken down is yours to put up again: the team only ever makes the first.
+export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp" && !(t === "pitch" && sim.campStruck)));
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
@@ -559,7 +560,9 @@ function finishCampWork(sim, w) {
     note(sim, { verb: "struck", actor: "you", object: "camp", cls: "camp", x: sim.camp.x, y: sim.camp.y, withWhom: helpers });
     sim.camp = { up: false, x: sim.camp.x, y: sim.camp.y, pile: 0, fire: 0, lit: false };
     sim.player.carryingKit = true;
-    for (const m of party(sim)) if (m.task === "camp") m.called = true;
+    sim.campStruck = true;                              // from here only you can make camp
+    sim.pitch = null;
+    for (const m of party(sim)) { if (m.task === "pitch") m.task = "follow"; if (m.autoTask === "pitch") m.autoTask = null; if (m.task === "camp") m.called = true; }
     say(sim, left > 0 ? "Camp is down. Some of the woodpile stays behind." : "Camp is down. You carry it.", "good");
     sim.events.push({ kind: "struck" });
   }
@@ -1005,7 +1008,7 @@ function taskDone(m, next) {
 export function autoScores(sim, m) {
   const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
   const s = {};
-  if (!sim.camp.up) s.pitch = 10 + m.skills.build * 0.5 - others("pitch") * 3;
+  if (!sim.camp.up && !sim.campStruck) s.pitch = 10 + m.skills.build * 0.5 - others("pitch") * 3;
   if (sim.camp.up || sim.pitch) s.gather = (sim.camp.up ? Math.max(0, 7 - sim.camp.pile) : 3) + m.skills.carry * 0.5 - others("gather") * 1.5;
   const i = currentDeadfall(sim);
   if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
