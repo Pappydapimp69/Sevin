@@ -68,7 +68,7 @@ export function startKeystone(sim, d) {
   for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
   for (const m of all) { m.away = true; m.state = "idle"; m.watch = false; }
   sim.keystone = { done: false, active: true, order: all.map((m) => m.id), nextAt: sim.time + 0.25 };
-  sim.plan.pending = null;                     // nobody to plan for yet
+  sim.plan.pending = "dawn";                   // set the day now; they start it as they arrive
   say(sim, "You wake and nobody is here. The camp is empty.", "warn");
 }
 
@@ -135,7 +135,7 @@ export function sleep(sim) {
   const burn = hours * burnRate(sim);          // deeper, the fire eats wood faster
   const fireHeld = camp.up && fuel >= burn;
   const fireHours = Math.min(fuel / burnRate(sim), hours);
-  if (camp.up) { camp.fire = Math.max(0, fuel - burn); camp.lit = camp.fire > 0; }
+  if (camp.up) { camp.fire = fuel - burn > 1e-6 ? fuel - burn : 0; camp.lit = camp.fire > 0; }   // a fire with no fuel is out, not lit
 
   // --- the hidden meter, across the night -----------------------------------
   const bodies = [p, ...party(sim)];

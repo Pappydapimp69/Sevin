@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, roster, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays, shownWood, shownFire } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
@@ -152,7 +152,7 @@ export function createUI(api) {
     const choice = {};
     const allowed = tasksNow(sim);
     const taskText = (t) => TASK_LABEL[t] + (TASK_SKILL[t] ? `  ·  ${SKILL_LABEL[TASK_SKILL[t]]}` : t === "auto" ? "  ·  whatever is needed" : "  ·  helps you");
-    const rows = party(sim).map((m) => {
+    const rows = roster(sim).map((m) => {
       choice[m.id] = allowed.includes(m.task) ? m.task : "follow";      // yesterday's work, unless you change it
       const skillCells = SKILLS.map((k) => h("span", { class: "sk", "data-k": k, title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])));
       // the skill this task uses lights up in the row

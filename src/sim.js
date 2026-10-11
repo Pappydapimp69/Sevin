@@ -705,14 +705,15 @@ function keystoneStep(sim) {
       const cx = sim.player.x + Math.cos(a) * d, cy = sim.player.y + Math.sin(a) * d;
       if (canStand(sim, cx, cy) && reachable(sim, sim.player, { x: cx, y: cy })) { x = cx; y = cy; break; }
     }
-    m.away = false; m.x = x; m.y = y; m.called = true; m.state = "idle";
+    m.away = false; m.x = x; m.y = y; m.called = false; m.state = "idle";   // straight to the work they were set
     say(sim, `${m.name} comes in out of the trees.`, "talk");
     sim.events.push({ kind: "returned", id: m.id });
   }
   k.nextAt = sim.time + 0.3 + stream(hash("gap", sim.seed, k.order.length))() * 0.3;
   if (!k.order.length) {
     k.active = false; k.done = true;
-    sim.plan.pending = sim.camp.up ? "dawn" : "dawn";
+    // the plan was set at first light; if it somehow was not, it is asked for now
+    sim.plan.pending = sim.plan.dawnDay === today(sim) ? null : "dawn";
     say(sim, "That is everyone.", "info");
   }
 }
@@ -1048,6 +1049,9 @@ function pitchDone(sim) {
   sim.events.push({ kind: "pitched" });
 }
 
+/** Everyone on the team, including anyone still out on the keystone morning. */
+export const roster = (sim) => sim.members.filter((m) => !m.gone && !m.home);
+
 export function setDawnPlan(sim, tasks) {
   const allowed = tasksNow(sim);
   if (Object.values(tasks).includes("pitch") && !sim.camp.up && !sim.pitch) {
@@ -1055,7 +1059,7 @@ export function setDawnPlan(sim, tasks) {
     sim.pitch = { x: c.x, y: c.y, left: PITCH_HOURS, place: c.kind, hands: [] };
     sim.player.carryingKit = false;          // they have the kit now
   }
-  for (const m of party(sim)) {
+  for (const m of roster(sim)) {
     const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "follow";
     m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null; m.called = false;
     note(sim, { verb: "assigned", actor: m.id, object: TASK_LABEL[t], cls: "task", x: sim.camp.x, y: sim.camp.y, key: "assigned:" + m.id });
