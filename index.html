@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>SEVIN</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><rect width=%2216%22 height=%2216%22 rx=%223%22 fill=%22%23ff5a5f%22/><text x=%228%22 y=%2213%22 font-size=%2212%22 text-anchor=%22middle%22 fill=%22white%22>7</text></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>SEVIN</h1>
+      <div class="stats">
+        <div><span class="label">score</span><span id="score">0</span></div>
+        <div><span class="label">time</span><span id="time">77</span></div>
+        <div><span class="label">best</span><span id="best">0</span></div>
+      </div>
+    </header>
+    <div id="bar"><div id="fill"></div></div>
+    <div id="sum">&nbsp;</div>
+    <div id="board"></div>
+    <div id="overlay">
+      <div class="card">
+        <h2 id="title">SEVIN</h2>
+        <p id="msg">Drag across touching dice that add up to <b>7</b>.<br>
+          Longer chains score more. Seven ones is the jackpot.</p>
+        <div class="buttons">
+          <button id="play">Play</button>
+          <button id="daily">Daily</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
