@@ -77,12 +77,12 @@ t("a pylon unmakes a fake and spares a real one, and is spent either way", () =>
   const [a, ...rest] = S.party(sim);
   for (const m of rest) { m.x = 0; m.y = 0; }
   a.x = sim.player.x + 1; a.y = sim.player.y;
-  S.act(sim);
+  S.act(sim, S.targetFor(sim, "pylon", 0));
   assert.ok(sim.pylons[0].spent && !a.gone);
   a.fake = true;
   const py2 = sim.world.pylons[1];
   sim.player.x = py2.x; sim.player.y = py2.y - 1; a.x = sim.player.x + 1; a.y = sim.player.y;
-  S.act(sim);
+  S.act(sim, S.targetFor(sim, "pylon", 1));
   assert.ok(sim.pylons[1].spent && a.gone);
 });
 
@@ -148,4 +148,28 @@ t("only save.js touches localStorage", () => {
 t("you can always ask about today, even before anything has happened", () => {
   const sim = S.createRun({ seed: 4 });
   assert.deepEqual(askableDays(sim), [1]);
+});
+
+t("the action is what you are looking at, not a fixed order", () => {
+  const sim = S.createRun({ seed: 3 });
+  const c = sim.camp;
+  // stand between the fire (south) and a stick (north)
+  sim.player.x = c.x; sim.player.y = c.y + 1.5;
+  const k = sim.world.sticks.findIndex((st) => st.area === 0);
+  sim.world.sticks[k] = { ...sim.world.sticks[k], x: c.x, y: c.y + 3.5 };
+  sim.player.yaw = 0;                 // facing north, at the stick
+  assert.equal(S.resolveAction(sim).kind, "stick");
+  sim.player.yaw = Math.PI;           // facing south, at the fire
+  assert.equal(S.resolveAction(sim).kind, "light");
+  sim.player.yaw = Math.PI / 2;       // facing east, at neither
+  assert.equal(S.resolveAction(sim), null);
+});
+
+t("touch tolerance widens reach without changing what is there", () => {
+  const sim = S.createRun({ seed: 3 });
+  const k = sim.world.sticks.findIndex((st) => st.area === 0);
+  const st = sim.world.sticks[k];
+  sim.player.x = st.x; sim.player.y = st.y - 3; sim.player.yaw = 0;
+  assert.equal(S.targetFor(sim, "stick", k), null);
+  assert.ok(S.targetFor(sim, "stick", k, 1.4));
 });

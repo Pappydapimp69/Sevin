@@ -5,6 +5,7 @@ import * as THREE from "../lib/three.module.js";
 import { hourOf, homeCount, PYLON_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
+const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
 const SLOT_COLOURS = [0xc8553d, 0x2e86ab, 0xf6ae2d, 0x86bbd8, 0x8f6593, 0x5c946e, 0xd4a373, 0x9b9b9b];
 const WEATHER_LOOK = {
   clear: { sky: 0x9cc3de, fog: 70, ground: 0x34502c, light: 1.0 },
@@ -21,20 +22,34 @@ export function createRenderer(canvas) {
   camera.rotation.order = "YXZ";
   let scene = null, built = null;
 
+  // The setting is the field of view on a landscape screen. Held upright, a
+  // phone would see a sliver of the world at the same vertical angle, so the
+  // vertical angle opens until the sideways view is at least 70 degrees.
+  let fovPref = 72;
   function resize() {
     const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
+    const minH = (70 * Math.PI) / 180;
+    const needV = (2 * Math.atan(Math.tan(minH / 2) / camera.aspect) * 180) / Math.PI;
+    camera.fov = Math.min(110, Math.max(fovPref, needV));
     camera.updateProjectionMatrix();
   }
+  function setFov(f) { fovPref = f; resize(); }
   window.addEventListener("resize", resize);
   resize();
 
   function build(sim) {
     const world = sim.world;
     scene = new THREE.Scene();
-    const B = { world, members: new Map(), missing: new Map() };
+    const B = { world, members: new Map(), missing: new Map(), picks: [] };
     built = B;
+    // an invisible, generous hit volume, so a small thing is easy to tap
+    function pickable(x, h, y, r, pick, owner, height = 0) {
+      const m = new THREE.Mesh(height ? new THREE.CylinderGeometry(r, r, height, 8) : new THREE.SphereGeometry(r, 8, 6), HIDDEN);
+      m.position.set(x, h, -y); m.userData.pick = pick; m.userData.owner = owner;
+      scene.add(m); B.picks.push(m);
+    }
 
     scene.fog = new THREE.Fog(0x9cc3de, 10, 70);
     B.hemi = new THREE.HemisphereLight(0xdfe9f3, 0x2a3320, 1.0);
@@ -110,6 +125,8 @@ export function createRenderer(canvas) {
       g.add(left, right, cut);
       g.position.set(mid * CELL + CELL / 2, 0, -df.y);
       scene.add(g);
+      const hit = new THREE.Mesh(new THREE.BoxGeometry(len, 2, 2), HIDDEN);
+      hit.position.set(0, 0.8, 0); hit.userData.pick = { kind: "chop", id: df.id }; g.add(hit); B.picks.push(hit);
       return { g, left, right, cut, len };
     });
 
@@ -120,6 +137,7 @@ export function createRenderer(canvas) {
       const m = new THREE.Mesh(stickGeo, stickMat);
       m.rotation.set(Math.PI / 2, 0, st.rot); m.position.set(st.x, 0.08, -st.y);
       scene.add(m);
+      pickable(st.x, 0.3, st.y, 0.7, { kind: "stick", id: st.id }, m);
       return m;
     });
 
@@ -128,6 +146,7 @@ export function createRenderer(canvas) {
       const g = pylonMesh(py.mossed);
       g.position.set(py.x, 0, -py.y);
       scene.add(g);
+      pickable(py.x, 2, py.y, 1.2, { kind: "pylon", id: py.id }, g, 4);
       return g;
     });
 
@@ -147,6 +166,19 @@ export function createRenderer(canvas) {
     // camp
     B.camp = campMesh();
     scene.add(B.camp.g);
+    const fireHit = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 1.6, 8), HIDDEN);
+    fireHit.position.y = 0.8; fireHit.userData.pick = { kind: "fire", id: 0 }; B.camp.g.add(fireHit); B.picks.push(fireHit);
+
+    // what the action key will act on: a ring on the ground and a marker above
+    B.marker = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.6, 28), new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04;
+    const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.3, 4), new THREE.MeshBasicMaterial({ color: 0xffe08a }));
+    arrow.rotation.x = Math.PI;
+    B.marker.add(ring, arrow);
+    B.marker.userData = { ring, arrow };
+    B.marker.visible = false;
+    scene.add(B.marker);
 
     // rain / leaves
     const N = 900;
@@ -161,7 +193,7 @@ export function createRenderer(canvas) {
     return B;
   }
 
-  function figure(colour) {
+  function figure(colour, pick) {
     const g = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ color: colour });
     const body = new THREE.Mesh(built.figureGeo.body, mat);
@@ -171,11 +203,14 @@ export function createRenderer(canvas) {
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.25), new THREE.MeshLambertMaterial({ color: 0x3d3b30 }));
     pack.position.set(0, 1.1, 0.3);
     g.add(body, head, pack);
+    const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2, 8), HIDDEN);
+    hit.position.y = 1; hit.userData.pick = pick; hit.userData.owner = g;
+    g.add(hit); built.picks.push(hit);
     scene.add(g);
     return g;
   }
 
-  function draw(sim, dt) {
+  function draw(sim, dt, view = {}) {
     if (!scene || built.world !== sim.world) build(sim);
     const B = built, p = sim.player;
     const weather = sim.weather[Math.floor((sim.time - 6) / 24) + 1] || "clear";
@@ -255,7 +290,7 @@ export function createRenderer(canvas) {
     const seen = new Set();
     for (const m of party(sim)) {
       let f = B.members.get(m.id);
-      if (!f) { f = figure(SLOT_COLOURS[m.slot % SLOT_COLOURS.length]); B.members.set(m.id, f); }
+      if (!f) { f = figure(SLOT_COLOURS[m.slot % SLOT_COLOURS.length], { kind: "member", id: m.id }); B.members.set(m.id, f); }
       f.visible = true;
       const prev = f.userData.prev || { x: m.x, y: m.y };
       const mv = Math.hypot(m.x - prev.x, m.y - prev.y);
@@ -268,7 +303,7 @@ export function createRenderer(canvas) {
     for (const [id, f] of B.members) if (!seen.has(id)) f.visible = false;
     for (const ms of sim.missing) {
       let f = B.missing.get(ms.id);
-      if (!f) { f = figure(SLOT_COLOURS[ms.slot % SLOT_COLOURS.length]); B.missing.set(ms.id, f); }
+      if (!f) { f = figure(SLOT_COLOURS[ms.slot % SLOT_COLOURS.length], { kind: "rescue", id: ms.id }); B.missing.set(ms.id, f); }
       f.visible = !ms.found && !ms.lost;
       f.position.set(ms.x, 0, -ms.y);
       f.rotation.y = sim.time * 0.3;
@@ -292,10 +327,38 @@ export function createRenderer(canvas) {
     const sway = windy ? Math.sin(performance.now() / 500) * 0.02 : 0;
     for (const c of B.crowns) c.rotation.z = sway;
 
+    // the target marker
+    const t = view.target, M = B.marker;
+    M.visible = !!t && !t.area;
+    if (M.visible) {
+      const pulse = 1 + Math.sin(performance.now() / 180) * 0.12;
+      M.position.set(t.x, 0, -t.y);
+      M.userData.ring.scale.set(pulse, pulse, pulse);
+      M.userData.arrow.position.y = (t.h || 1) + 0.35 + Math.sin(performance.now() / 250) * 0.08;
+    }
+
     renderer.render(scene, camera);
   }
 
-  return { draw, resize, camera, renderer, get built() { return built; } };
+  // What is under a point on the screen: {kind, id} of the nearest visible thing.
+  const ray = new THREE.Raycaster();
+  function pick(clientX, clientY) {
+    if (!built) return null;
+    const r = canvas.getBoundingClientRect();
+    ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
+    ray.far = 30;
+    for (const hit of ray.intersectObjects(built.picks, false)) {
+      const o = hit.object, owner = o.userData.owner;
+      if (owner && !owner.visible) continue;
+      let up = o.parent, shown = true;
+      while (up) { if (up.visible === false) shown = false; up = up.parent; }
+      if (!shown) continue;
+      return { ...o.userData.pick, dist: hit.distance };
+    }
+    return null;
+  }
+
+  return { draw, pick, resize, setFov, camera, renderer, get built() { return built; } };
 }
 
 function pylonMesh(mossed) {

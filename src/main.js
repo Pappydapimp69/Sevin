@@ -20,7 +20,10 @@ let lastSave = 0;
 let chatClock = 0;
 
 const audio = createAudio();
-const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => ui.rekey() });
+const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => ui.rekey(), onTap: (x, y) => tap(x, y) });
+// Touch aims coarsely: wider reach and facing cone there (Brain: touch
+// tolerance, not an easier game).
+const tolerance = () => (input.state.scheme === "touch" ? 1.4 : 1);
 const prefs = Save.settings();
 const ui = createUI({
   paused: (on) => { paused = on; input.setEnabled(!on); },
@@ -38,7 +41,7 @@ const ui = createUI({
 function applySettings(st) {
   input.state.sens = st.sens;
   audio.setVolume(st.volume);
-  renderer.camera.fov = st.fov; renderer.camera.updateProjectionMatrix();
+  renderer.setFov(st.fov);
   document.documentElement.style.setProperty("--ui", { small: "13px", normal: "16px", large: "20px" }[st.ui] || "16px");
 }
 applySettings(prefs);
@@ -92,9 +95,9 @@ function lookTarget() {
   let best = null, bd = Infinity;
   for (const m of S.party(sim)) {
     const dx = m.x - p.x, dy = m.y - p.y, d = Math.hypot(dx, dy);
-    if (d > 5 || d < 0.01) continue;
+    if (d > 5 * tolerance() || d < 0.01) continue;
     const ang = Math.acos(Math.max(-1, Math.min(1, (dx * fx + dy * fy) / d)));
-    if (ang < 0.45 && d < bd) { bd = d; best = m; }
+    if (ang < 0.45 * tolerance() && d < bd) { bd = d; best = m; }
   }
   return best;
 }
@@ -111,14 +114,18 @@ const campVerbs = {
   walkOut: () => ui.confirm("Walk out now? Whoever has not gone home stays here.", () => finish(S.walkOut(sim))),
 };
 
+function verbAct(target) {
+  const r = S.act(sim, target, tolerance());
+  if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press {camp} to walk out.");
+}
+
 function verb(v) {
   if (v === "escape") { if (ui.open && ui.open !== "title" && ui.open !== "recruit" && ui.open !== "end") ui.close(); return; }
   if (!sim || paused) return;
   switch (v) {
     case "act": {
       if (sim.tutorial && tutorialStep(sim)?.id === "end") { ui_finishTutorial(); break; }
-      const r = S.act(sim);
-      if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press {camp} to walk out.");
+      verbAct(null);
       break;
     }
     case "ask": {
@@ -137,6 +144,25 @@ function verb(v) {
     case "pause": ui.pause({ quit: () => { if (sim && !sim.tutorial) Save.saveRun(sim); title(); } }); break;
     case "help": ui.help(); break;
   }
+}
+
+// A tap on the world acts on whatever is under the finger, if it is in reach.
+function tap(x, y) {
+  if (!sim || paused) return;
+  const hit = renderer.pick(x, y);
+  if (!hit) return;
+  if (hit.kind === "member") {
+    const m = S.party(sim).find((p) => p.id === hit.id);
+    if (!m) return;
+    if (Math.hypot(m.x - sim.player.x, m.y - sim.player.y) > 5 * tolerance()) { S.say(sim, `${m.name} is too far away to ask. Walk closer.`); return; }
+    ui.ask(sim, m, (id, day) => S.askMember(sim, id, day));
+    return;
+  }
+  const kinds = hit.kind === "fire" ? ["light", "feed"] : [hit.kind];
+  const t = S.actionTargets(sim, tolerance()).find((a) => kinds.includes(a.kind) && a.id === hit.id);
+  if (!t) { S.say(sim, "Too far. Walk closer."); return; }
+  if (sim.tutorial && tutorialStep(sim)?.id === "end") return;
+  verbAct(t);
 }
 
 function doSleep() {
@@ -199,8 +225,9 @@ function frame(now) {
     for (const e of sim.events) { audio.event(e, sim); if (e.kind === "over") finish(sim.over); }
     sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;
-    ui.hud(sim, { action: paused ? null : S.resolveAction(sim), target: paused ? null : lookTarget(), step });
-    renderer.draw(sim, dt);
+    const action = paused ? null : S.resolveAction(sim, tolerance());
+    ui.hud(sim, { action, target: paused ? null : lookTarget(), step });
+    renderer.draw(sim, dt, { target: action });
   }
   requestAnimationFrame(frame);
 }
@@ -214,4 +241,4 @@ for (const b of document.querySelectorAll("#touchbar button")) b.addEventListene
 title();
 
 // for tests and the curious
-window.__sevin = { get sim() { return sim; }, S, verb, input, audio, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { get sim() { return sim; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };

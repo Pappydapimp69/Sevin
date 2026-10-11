@@ -30,7 +30,7 @@ export const STEPS = [
   },
   {
     id: "sticks", verb: "act",
-    text: "Wood keeps you alive at night. Pick up three sticks around the clearing: look at one and press {act}.",
+    text: "Wood keeps you alive at night. Pick up three sticks around the clearing: {useit}. A ring marks what you will pick up.",
     done: (s) => s.sticks.filter(Boolean).length >= 3,
   },
   {
@@ -40,12 +40,12 @@ export const STEPS = [
   },
   {
     id: "fire", verb: "act",
-    text: "Light the fire: stand at the ring of stones and press {act}. A fire only shields the camp itself, and only at night. Light reaches further than safety.",
+    text: "Light the fire: stand at the ring of stones and {useit}. A fire only shields the camp itself, and only at night. Light reaches further than safety.",
     done: (s) => s.camp.lit,
   },
   {
     id: "ask", verb: "ask",
-    text: "Look at Orla or Benet and press {ask} to ask about today. Out here, what someone remembers is the only evidence there is. Listen for anything that is not how it was.",
+    text: "Ask Orla or Benet about today: {askthem}. Out here, what someone remembers is the only evidence there is. Listen for anything that is not how it was.",
     done: (s) => s.stats.asked >= 1,
   },
   {
@@ -55,12 +55,12 @@ export const STEPS = [
   },
   {
     id: "chop", verb: "act",
-    text: "North of camp a log lies across the trail. Anyone can chop it; more hands are faster. Stand at it and press {act}, then stand still. Time runs fast while you work. Moving stops it.",
+    text: "North of camp a log lies across the trail. Anyone can chop it; more hands are faster. Stand at it and {useit}, then stand still. Time runs fast while you work. Moving stops it.",
     done: (s) => s.deadfalls[0].done >= 1,
   },
   {
     id: "pylon", verb: "act",
-    text: "Past the log stands an old pylon, mossed over. A pylon takes two pairs of hands. Bring someone close and press {act}.",
+    text: "Past the log stands an old pylon, mossed over. A pylon takes two pairs of hands. Bring someone close, then {useit}.",
     done: (s) => s.pylons[0].spent && s.pylons[0].litAt != null,
   },
   {

@@ -21,7 +21,7 @@ function stick(x, y) {
   return { x: x * k, y: y * k };
 }
 
-export function createInput(canvas, verbs, { onScheme } = {}) {
+export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
   const held = new Set();
   const st = {
     yaw: 0, pitch: 0, look: { dx: 0, dy: 0 }, touchMove: { x: 0, y: 0 },
@@ -70,7 +70,7 @@ export function createInput(canvas, verbs, { onScheme } = {}) {
   const touches = new Map();
   window.addEventListener("touchstart", () => setScheme("touch"), { passive: true });
   canvas.addEventListener("touchstart", (e) => {
-    for (const t of e.changedTouches) touches.set(t.identifier, { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY, left: t.clientX < window.innerWidth / 2 });
+    for (const t of e.changedTouches) touches.set(t.identifier, { x0: t.clientX, y0: t.clientY, x: t.clientX, y: t.clientY, left: t.clientX < window.innerWidth / 2, t0: performance.now() });
     e.preventDefault();
   }, { passive: false });
   canvas.addEventListener("touchmove", (e) => {
@@ -88,8 +88,11 @@ export function createInput(canvas, verbs, { onScheme } = {}) {
   }, { passive: false });
   const end = (e) => {
     for (const t of e.changedTouches) {
-      if (touches.get(t.identifier)?.left) st.touchMove = { x: 0, y: 0 };
+      const s = touches.get(t.identifier);
+      if (s?.left) st.touchMove = { x: 0, y: 0 };
       touches.delete(t.identifier);
+      // a short, still touch is a TAP: on the thing under the finger
+      if (s && e.type === "touchend" && st.enabled && performance.now() - s.t0 < 350 && Math.hypot(t.clientX - s.x0, t.clientY - s.y0) < 14) onTap?.(t.clientX, t.clientY);
     }
   };
   canvas.addEventListener("touchend", end);

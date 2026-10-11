@@ -327,8 +327,13 @@ export function createUI(api) {
     // the prompt: the action in front of you, and who you are looking at
     const sch = api.scheme();
     const lines = [];
-    if (view.action) lines.push(`${glyph("act", sch)} ${view.action.label}`);
-    if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
+    if (sch === "touch") {
+      if (view.action) lines.push(`${view.action.label} (tap it, or Use)`);
+      if (view.target) lines.push(`Ask ${view.target.name} (tap them)`);
+    } else {
+      if (view.action) lines.push(`${glyph("act", sch)} ${view.action.label}`);
+      if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
+    }
     $("prompt").textContent = lines.join("   ");
     $("work").textContent = sim.work ? workText(sim.work) : "";
     $("work").hidden = !sim.work;

@@ -444,32 +444,66 @@ function finishCampWork(sim, w) {
 // Verbs the player uses (called by the UI)
 // ---------------------------------------------------------------------------
 
-/** What pressing the action key would do here, and to what. */
-export function resolveAction(sim) {
-  const p = sim.player, W = sim.world;
-  if (sim.over) return null;
-  // someone out in the woods
-  for (const ms of sim.missing) if (!ms.found && !ms.lost && dist(ms, p) < REACH) return { kind: "rescue", id: ms.id, label: "Bring " + ms.name + " home" };
-  // the far side
-  if (W.farSide && dist(W.farSide, p) < W.farSide.r) return { kind: "home", label: "Light a pylon home" };
+/**
+ * Everything within reach that the action key could act on, each with the
+ * point it is AT. `tolerance` widens reach and the facing cone (touch aiming is
+ * coarse; Brain: touch tolerance, not an easier game).
+ */
+export function actionTargets(sim, tolerance = 1) {
+  const p = sim.player, W = sim.world, out = [];
+  if (sim.over) return out;
+  const R = (r) => r * tolerance;
+  for (const ms of sim.missing)
+    if (!ms.found && !ms.lost && dist(ms, p) < R(REACH)) out.push({ kind: "rescue", id: ms.id, x: ms.x, y: ms.y, h: 1.9, label: "Bring " + ms.name + " home" });
   for (let i = 0; i < W.pylons.length; i++)
-    if (!sim.pylons[i].spent && dist(W.pylons[i], p) < REACH + 0.5) return { kind: "pylon", id: i, label: "Light the pylon" };
+    if (!sim.pylons[i].spent && dist(W.pylons[i], p) < R(REACH + 0.5)) out.push({ kind: "pylon", id: i, x: W.pylons[i].x, y: W.pylons[i].y, h: 4.4, label: "Light the pylon" });
   for (let i = 0; i < W.deadfalls.length; i++) {
     const df = W.deadfalls[i];
-    if (sim.deadfalls[i].done < 1 && Math.abs(df.x - p.x) < 5 && Math.abs(df.y - p.y) < 3.5)
-      return { kind: "chop", id: i, label: sim.work?.kind === "chop" ? "Stop chopping" : "Chop" };
+    if (sim.deadfalls[i].done >= 1) continue;
+    // the log is long: the point that counts is the bit of it in front of you
+    const xs = df.cells.map((c) => c[0] * CELL);
+    const x = Math.max(Math.min(...xs), Math.min(Math.max(...xs) + CELL, p.x));
+    if (Math.abs(x - p.x) < R(2.5) && Math.abs(df.y - p.y) < R(3.5))
+      out.push({ kind: "chop", id: i, x, y: df.y, h: 1.6, label: sim.work?.kind === "chop" ? "Stop chopping" : "Chop" });
   }
   for (let i = 0; i < W.sticks.length; i++)
-    if (!sim.sticks[i] && dist(W.sticks[i], p) < 2) return { kind: "stick", id: i, label: "Pick up wood" };
-  if (sim.camp.up && dist(sim.camp, p) < REACH) {
-    if (!sim.camp.lit) return { kind: "light", label: sim.camp.pile > 0 ? "Light the fire" : "Light the fire (no wood in the pile)" };
-    return { kind: "feed", label: sim.camp.pile > 0 ? "Feed the fire" : "Feed the fire (no wood in the pile)" };
+    if (!sim.sticks[i] && dist(W.sticks[i], p) < R(2.6)) out.push({ kind: "stick", id: i, x: W.sticks[i].x, y: W.sticks[i].y, h: 0.6, label: "Pick up wood" });
+  if (sim.camp.up && dist(sim.camp, p) < R(REACH)) {
+    const pile = sim.camp.pile > 0 ? "" : " (no wood in the pile)";
+    out.push({ kind: sim.camp.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, label: (sim.camp.lit ? "Feed the fire" : "Light the fire") + pile });
   }
-  return null;
+  // the far side is a place, not a thing: no facing needed
+  if (W.farSide && dist(W.farSide, p) < W.farSide.r) out.push({ kind: "home", id: 0, x: p.x, y: p.y, h: 0, label: "Light a pylon home", area: true });
+  return out;
 }
 
-export function act(sim) {
-  const a = resolveAction(sim);
+/**
+ * What pressing the action key would do: the thing you are LOOKING at. The
+ * nearest-in-front wins, not a fixed order, so a stick at your feet is not
+ * lost behind a fire at your back.
+ */
+export function resolveAction(sim, tolerance = 1) {
+  const p = sim.player;
+  const fx = Math.sin(p.yaw), fy = Math.cos(p.yaw);
+  const cone = 1.0 * tolerance;              // radians either side of straight ahead
+  let best = null, bs = Infinity;
+  for (const t of actionTargets(sim, tolerance)) {
+    const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
+    const ang = d < 0.9 || t.area ? 0 : Math.acos(Math.max(-1, Math.min(1, (dx * fx + dy * fy) / d)));
+    if (ang > cone) continue;
+    const score = ang * 2 + d * 0.25 + (t.area ? 3 : 0);
+    if (score < bs) { bs = score; best = t; }
+  }
+  return best;
+}
+
+/** The target a tap or a press means, if it is still in reach. */
+export function targetFor(sim, kind, id, tolerance = 1) {
+  return actionTargets(sim, tolerance).find((t) => t.kind === kind && t.id === id) || null;
+}
+
+export function act(sim, target = null, tolerance = 1) {
+  const a = target || resolveAction(sim, tolerance);
   if (!a) return null;
   const p = sim.player, W = sim.world;
   switch (a.kind) {
