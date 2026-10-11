@@ -84,6 +84,10 @@ title button. `#nosplash` skips it.
 - **Voices.** Everyone whistles their own way (`voice.js`). A fake whistles
   the one it replaced with exactly one audible thing slightly off: a semitone,
   a narrower jump, a different pace. Derived, like the accounts.
+- **Whistle (rework).** One whistle: everyone in earshot (25 m) whistles back and
+  carries on with what they are doing. A second within 3 s: the nearest stops and
+  comes to you for half an hour, then goes back to work. Hold the button and it
+  is louder, longer and carries up to twice as far.
 - **The call.** At first light, a voice from a bearing (8 directions). False
   calls also happen, so a call is not an announcement; a bearing that holds
   across dawns is the tell. It fades with nights out, with a floor, and stops

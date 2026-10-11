@@ -88,6 +88,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     lastFollowCall: -1,
     phantom: Phantom.fresh(),
     keystone: { done: false, active: false, order: [], nextAt: 0 },
+    whistleWindow: 0,
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -324,11 +325,10 @@ function tickMember(sim, m, dt, hours) {
   const p = sim.player;
   m.stateT += hours;
 
-  // They heard the whistle a moment ago; now they come.
+  // They heard the whistle a moment ago and whistle back. That is all: what
+  // they are doing is theirs until you whistle twice.
   if (m.answerAt != null && sim.time >= m.answerAt) {
     m.answerAt = null;
-    // with you for the rest of the day; their task waits for the morning
-    m.called = true; m.state = "idle"; m.site = null;
     sim.events.push({ kind: "answer", id: m.id, x: m.x, y: m.y, voice: m.voice, ctx: whistleCtx(sim, m) });
   }
   const hr = hourOf(sim.time);
@@ -372,7 +372,7 @@ function tickMember(sim, m, dt, hours) {
   // Called to you (a whistle, or no camp to go back to): with you until
   // morning, when they go back to the task they were set.
   if (m.task === "auto") autoPick(sim, m);
-  switch (m.called ? "follow" : effTask(m)) {
+  switch (m.called || summoned(sim, m) ? "follow" : effTask(m)) {
     case "follow": {
       const near = 2.2 + (m.slot % 3) * 0.9;
       const d = dist(m, p);
@@ -791,7 +791,7 @@ export function atFireTonight(sim, m) {
   // a field shift ends early so they are home by dark; once home, they stay
   const t = effTask(m);
   const from = t === "chop" || t === "gather" ? DUSK - 1.5 : DUSK - 0.25;
-  return (hr >= from || hr < DAWN) && sim.camp.up && t !== "follow" && !m.called && t !== "pitch";
+  return (hr >= from || hr < DAWN) && sim.camp.up && t !== "follow" && !m.called && !summoned(sim, m) && t !== "pitch";
 }
 
 /**
@@ -814,33 +814,47 @@ export function whistleCtx(sim, m) {
 }
 
 export function busy(sim, m) {
-  if (m.called) return false;
+  if (m.called || summoned(sim, m)) return false;
   const t = effTask(m);
   if (t === "gather") return true;
   if (t === "chop") return m.chopId == null || sim.deadfalls[m.chopId]?.done < 1;
   return m.state === "home" && m.load > 0;
 }
 
+/** Called over: with you until their half hour is up. */
+export const summoned = (sim, m) => m.summonUntil != null && sim.time < m.summonUntil;
+export const SUMMON_HOURS = 0.5;                 // half an hour of the world's clock
+export const WHISTLE_WINDOW = 3;                 // seconds in which a second whistle summons
+
 /**
- * Whistle. Whoever hears it and is not busy whistles back and comes, after a
- * moment: the further off, the longer before they set out. Nothing is
- * instant, and nothing says who did not come. The far-gone may not answer;
- * the whistle sounds the same either way. Draws nothing from the run.
+ * Whistle. EVERYONE in earshot whistles back, whatever they are doing: the
+ * further off, the longer before they answer, and the far-gone may not (it
+ * sounds the same either way). That is all one whistle does. Whistle again
+ * within three seconds and the nearest of them stops what they are doing and
+ * comes to you for half an hour, then goes back to their work. Draws nothing
+ * from the run.
  */
-export function whistle(sim) {
-  const heard = [];
-  for (const m of party(sim)) {
-    const d = dist(m, sim.player);
-    if (d > HEAR || m.task === "follow" || m.called || m.answerAt != null) continue;
-    // at night the fire holds them: a whistle from the dark does not
-    if (busy(sim, m) || atFireTonight(sim, m) || m.sanity < 0.25) continue;
+export function whistle(sim, power = 1) {
+  const second = (sim.whistleWindow || 0) > 0;
+  const inRange = party(sim).filter((m) => dist(m, sim.player) <= HEAR * power).sort((a, b) => dist(a, sim.player) - dist(b, sim.player));
+  for (const m of inRange) {
+    if (m.answerAt != null || m.sanity < 0.25) continue;
     const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
-    m.answerAt = sim.time + 0.04 + d * 0.005 + jitter * 0.03;    // ~1-4 s
-    heard.push(m.id);
+    m.answerAt = sim.time + 0.04 + dist(m, sim.player) * 0.005 + jitter * 0.03;    // ~1-4 s
   }
+  let summonedId = null;
+  if (second && inRange.length) {
+    const m = inRange.find((x) => x.sanity >= 0.25) || inRange[0];
+    m.summonUntil = sim.time + SUMMON_HOURS;
+    m.state = "idle"; m.site = null; m.chopId = null;
+    summonedId = m.id;
+    say(sim, `${m.name} stops what they are doing and comes.`, "talk");
+    sim.events.push({ kind: "summoned", id: m.id });
+  }
+  sim.whistleWindow = second ? 0 : WHISTLE_WINDOW;
   sim.stats.whistles = (sim.stats.whistles || 0) + 1;
-  sim.events.push({ kind: "whistle", ctx: whistleCtx(sim, null) });
-  return heard;
+  sim.events.push({ kind: "whistle", power, ctx: whistleCtx(sim, null) });
+  return summonedId;
 }
 // The two-hands rule. The nearest companion is the second pair. A fake cannot
 // be: it is gone the moment the pylon catches. The pylon is spent either way.
@@ -1102,6 +1116,7 @@ export function tick(sim, dt, input = {}) {
   const before = sim.time;
   sim.time += hours;
 
+  if (sim.whistleWindow > 0) sim.whistleWindow = Math.max(0, sim.whistleWindow - dt);   // real seconds
   keystoneStep(sim);
   tickWork(sim, hours, dt);
   dropWood(sim);
@@ -1137,7 +1152,7 @@ export function tick(sim, dt, input = {}) {
 
 // The hidden meter. Depth and night wear on everyone; a lit pylon cancels depth
 // for its area; a lit fire at camp blunts the night. It never heals.
-export const DRAIN = 0.0045;
+export const DRAIN = 0.007;
 function drain(sim, hours) {
   if (sim.tutorial) return;
   const night = isNight(sim.time);

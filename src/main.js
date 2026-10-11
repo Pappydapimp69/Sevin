@@ -21,7 +21,7 @@ let lastSave = 0;
 let chatClock = 0;
 
 const audio = createAudio();
-const input = createInput(canvas, (v) => { audio.unlock(); verb(v); }, { onScheme: () => { ui.rekey(); paintSplash(); }, onTap: (x, y) => tap(x, y) });
+const input = createInput(canvas, (v, a) => { audio.unlock(); verb(v, a); }, { onScheme: () => { ui.rekey(); paintSplash(); }, onTap: (x, y) => tap(x, y) });
 // Touch aims coarsely: wider reach and facing cone there (Brain: touch
 // tolerance, not an easier game).
 const tolerance = () => (input.state.scheme === "touch" ? 1.4 : 1);
@@ -122,7 +122,7 @@ function verbAct(target) {
   S.begin(sim, target, tolerance());
 }
 
-function verb(v) {
+function verb(v, arg) {
   if (v === "escape") { if (ui.open && ui.open !== "title" && ui.open !== "recruit" && ui.open !== "end") ui.close(); return; }
   if (!sim || paused) return;
   switch (v) {
@@ -138,7 +138,8 @@ function verb(v) {
       break;
     }
     case "call": {
-      S.whistle(sim);
+      // a tap is a whistle; hold and it is louder, longer and carries farther (up to twice)
+      S.whistle(sim, Math.min(2, 1 + Math.max(0, (arg || 0) - 0.3) * 0.8));
       S.say(sim, "You whistle.");
       break;
     }
@@ -326,7 +327,14 @@ requestAnimationFrame(frame);
 document.addEventListener("visibilitychange", () => { if (document.hidden && sim && !sim.tutorial) Save.saveRun(sim); });
 
 // touch buttons
-for (const b of document.querySelectorAll("#touchbar button")) b.addEventListener("click", (e) => { e.preventDefault(); verb(b.dataset.verb); });
+for (const b of document.querySelectorAll("#touchbar button")) {
+  if (b.dataset.verb === "call") {
+    let t0 = null;
+    b.addEventListener("pointerdown", () => { t0 = performance.now(); });
+    const up = () => { if (t0 != null) { const d = (performance.now() - t0) / 1000; t0 = null; verb("call", d); } };
+    b.addEventListener("pointerup", up); b.addEventListener("pointerleave", up);
+  } else b.addEventListener("click", (e) => { e.preventDefault(); verb(b.dataset.verb); });
+}
 
 // ---------------------------------------------------------------- the studio card
 const splashEl = document.getElementById("splash");

@@ -110,7 +110,11 @@ export function createAudio() {
       case "pylonLit": tone(523, 1.4, 0.25); tone(784, 1.6, 0.18, 0, 0, "sine", 0.15); break;
       case "unmade": tone(196, 2.2, 0.3, 0, -60, "sawtooth"); break;
       case "sentHome": tone(659, 1.2, 0.2); tone(988, 1.4, 0.15, 0, 0, "sine", 0.2); break;
-      case "whistle": whistleTone(0, 0.22, e.ctx ? phrase(PLAYER_VOICE, e.ctx, true) : notes(PLAYER_VOICE)); break;
+      case "whistle": {
+        // held: longer and louder
+        const pw = e.power || 1, ph = (e.ctx ? phrase(PLAYER_VOICE, e.ctx, true) : notes(PLAYER_VOICE)).map((n) => ({ ...n, dur: n.dur * pw, at: n.at * pw }));
+        whistleTone(0, 0.22 * Math.min(1.6, pw), ph); break;
+      }
       case "answer": {
         // their whistle back: from where they are, fainter with distance
         const dx = e.x - sim.player.x, dy = e.y - sim.player.y, d = Math.hypot(dx, dy);

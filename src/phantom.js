@@ -12,8 +12,8 @@
 import { stream, hash } from "./rng.js";
 import { canStand, hourOf, today } from "./sim.js";
 
-export const STICK_MIND = 0.55;      // below this the ground starts offering things
-export const FIRE_MIND = 0.35;       // below this a dead fire can still seem to burn
+export const STICK_MIND = 0.75;      // below this the ground starts offering things
+export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to burn
 export const fresh = () => ({ taken: [], extra: 0, fire: 0 });
 
 const mind = (sim) => sim.player.sanity;

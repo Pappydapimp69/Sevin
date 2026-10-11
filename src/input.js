@@ -50,10 +50,15 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
     if (!st.enabled) return;
     held.add(e.code);
     const v = KEY_GAME[e.code];
-    if (v && !e.repeat) { e.preventDefault(); verbs(v); }
+    if (v === "call") { e.preventDefault(); if (!e.repeat) callStart = performance.now(); }
+    else if (v && !e.repeat) { e.preventDefault(); verbs(v); }
     if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault();
   });
-  window.addEventListener("keyup", (e) => held.delete(e.code));
+  let callStart = null;       // the whistle fires on release: a tap is short, a hold is long
+  window.addEventListener("keyup", (e) => {
+    held.delete(e.code);
+    if (KEY_GAME[e.code] === "call" && callStart != null) { const d = (performance.now() - callStart) / 1000; callStart = null; if (st.enabled) verbs("call", d); }
+  });
   window.addEventListener("blur", () => held.clear());
 
   // --- mouse ------------------------------------------------------------------
@@ -104,6 +109,7 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
   // not fall between two slow frames. Presses dispatch at once, the way key
   // events do; the sticks are kept for read() to pick up.
   let prev = [];
+  let padCall = null;
   let stickHeld = false;
   let sticks = null;
   function pad() {
@@ -136,7 +142,9 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
       return;
     }
     if (!st.enabled) return;
-    for (const [i, v] of Object.entries(PAD_GAME)) if (edge[i]) { verbs(v); if (menu) break; }
+    for (const [i, v] of Object.entries(PAD_GAME)) if (edge[i] && v !== "call") { verbs(v); if (menu) break; }
+    if (edge[3]) padCall = performance.now();
+    if (!now[3] && padCall != null) { const d = (performance.now() - padCall) / 1000; padCall = null; verbs("call", d); }
   }
   setInterval(sample, 16);
   function pollPad() { return menu || !st.enabled ? null : sticks; }

@@ -50,8 +50,8 @@ export const STEPS = [
   },
   {
     id: "call", verb: "call",
-    text: "Press {call} to whistle. Anyone who hears it and is not busy whistles back and comes. It takes them a moment. Each of them whistles their own way: learn it.",
-    done: (s) => s.members.some((m) => m.task === "follow" || m.called),
+    text: "Press {call} to whistle: everyone in earshot whistles back, each in their own way (learn them). Whistle again within three seconds and the nearest stops what they are doing and comes to you for half an hour.",
+    done: (s) => s.members.some((m) => m.summonUntil != null && s.time < m.summonUntil),
   },
   {
     id: "chop", verb: "act",

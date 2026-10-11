@@ -122,8 +122,8 @@ t("the tutorial: every step, and nobody's mind is touched", () => {
   sim.sticks[0] = sim.sticks[1] = sim.sticks[2] = true; sim.camp.pile = 3;
   S.tendFire(sim);
   sim.stats.asked = 1;
-  S.whistle(sim);
-  for (let i = 0; i < 100; i++) S.tick(sim, 0.1, {});
+  S.whistle(sim); S.whistle(sim);
+  for (let i = 0; i < 20; i++) S.tick(sim, 0.1, {});
   sim.deadfalls[0].done = 1;
   sim.pylons[0].spent = true; sim.pylons[0].litAt = sim.time;
   sim.camp.up = false;
@@ -175,28 +175,44 @@ t("touch tolerance widens reach without changing what is there", () => {
   assert.ok(S.targetFor(sim, "stick", k, 1.4));
 });
 
-t("a whistle: idle people in earshot come, after a moment; busy and far ones do not", () => {
+t("a whistle: everyone in earshot answers and nobody moves; twice in three seconds the nearest comes", () => {
   const sim = S.createRun({ seed: 6, camp: true });
   sim.plan.dawnDay = 1;
   sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
-  const [idle, cutter, gatherer, far] = S.party(sim);
-  idle.task = "camp";
-  cutter.task = "chop"; cutter.chopId = 0;
-  gatherer.task = "gather";
+  const [idle, cutter, gatherer, far, near] = S.party(sim);
+  idle.task = "camp"; cutter.task = "chop"; cutter.chopId = 0; gatherer.task = "gather";
   far.task = "camp"; far.x = sim.player.x + S.HEAR + 10; far.y = sim.player.y;
+  near.task = "camp"; near.x = sim.player.x + 2; near.y = sim.player.y;
   const r0 = sim.rngState;
-  const heard = S.whistle(sim);
-  assert.deepEqual(heard, [idle.id]);
-  assert.ok(!idle.called, "came instantly");
+  S.whistle(sim);
   assert.equal(sim.rngState, r0, "whistling drew from the run");
-  S.tick(sim, 0.1, {});
-  assert.ok(!idle.called, "came within a tenth of a second");
-  for (let i = 0; i < 60; i++) S.tick(sim, 0.1, {});
-  assert.ok(idle.called, "never came");
-  assert.equal(idle.task, "camp", "the whistle overwrote their task");
-  assert.equal(cutter.task, "chop");
-  assert.equal(gatherer.task, "gather");
-  assert.equal(far.task, "camp");
+  for (const m of [idle, cutter, gatherer, near]) assert.ok(m.answerAt != null, m.name + " did not hear it");
+  assert.equal(far.answerAt, undefined, "out of earshot, and answered");
+  for (const m of [idle, cutter, gatherer, near]) assert.ok(!S.summoned(sim, m), "one whistle called someone over");
+  const t0 = sim.time, answers = [];
+  for (let i = 0; i < 80; i++) { S.tick(sim, 0.1, {}); for (const e of sim.events.splice(0)) if (e.kind === "answer") answers.push(e.id); }
+  assert.deepEqual(new Set(answers), new Set([idle.id, cutter.id, gatherer.id, near.id]), "not everyone whistled back");
+  assert.equal(cutter.task, "chop"); assert.equal(gatherer.task, "gather");
+  // a second whistle inside three seconds
+  const sim2 = S.createRun({ seed: 6, camp: true }); sim2.plan.dawnDay = 1;
+  sim2.player.x = sim2.camp.x; sim2.player.y = sim2.camp.y;
+  const [a, b, ...others2] = S.party(sim2);
+  for (const o of others2) { o.x = sim2.player.x + 200; o.y = sim2.player.y; }
+  a.task = "chop"; a.chopId = 0; a.x = sim2.player.x + 8; a.y = sim2.player.y;
+  b.task = "camp"; b.x = sim2.player.x + 3; b.y = sim2.player.y;
+  S.whistle(sim2);
+  for (let i = 0; i < 20; i++) S.tick(sim2, 0.1, {});         // two seconds
+  const who = S.whistle(sim2);
+  assert.equal(who, b.id, "the nearest should have come");
+  assert.ok(S.summoned(sim2, b) && !S.summoned(sim2, a));
+  assert.equal(b.task, "camp", "the whistle overwrote their task");
+  // a second whistle after the window is just another whistle
+  const sim3 = S.createRun({ seed: 6, camp: true }); sim3.plan.dawnDay = 1;
+  sim3.player.x = sim3.camp.x; sim3.player.y = sim3.camp.y;
+  S.party(sim3)[0].x = sim3.player.x + 3; S.party(sim3)[0].y = sim3.player.y;
+  S.whistle(sim3);
+  for (let i = 0; i < 40; i++) S.tick(sim3, 0.1, {});         // four seconds
+  assert.equal(S.whistle(sim3), null, "a late second whistle summoned someone");
 });
 
 t("the further off, the longer before they set out", () => {
@@ -423,20 +439,24 @@ t("gathering is chopping: an hour a chop, one piece back from it", () => {
   }
 });
 
-t("called to you by day, back to their own task the next morning", () => {
+t("called over for half an hour, then back to their own task", () => {
   const sim = S.createRun({ seed: 5, camp: true });
   sim.plan.dawnDay = 1;
-  const [a] = S.party(sim);
-  S.setDawnPlan(sim, { [a.id]: "camp" });
-  sim.player.x = sim.camp.x + 6; sim.player.y = sim.camp.y;
-  S.whistle(sim);
-  for (let i = 0; i < 100; i++) S.tick(sim, 0.1, {});
-  assert.ok(a.called);
-  assert.equal(a.task, "camp");
-  while (!S.isNight(sim.time)) { S.tick(sim, 0.1, {}); if (sim.plan.pending) S.setDuskPlan(sim, {}); }
-  sleep(sim);
-  assert.ok(!a.called, "still with you the next day");
-  assert.equal(a.task, "camp");
+  const [a, ...others] = S.party(sim);
+  S.setDawnPlan(sim, { [a.id]: "chop" });
+  sim.player.x = sim.camp.x + 4; sim.player.y = sim.camp.y;
+  for (const o of others) { o.x = sim.player.x + 200; o.y = sim.player.y; o.task = "camp"; }
+  for (let i = 0; i < 60; i++) S.tick(sim, 0.1, {});
+  S.whistle(sim); S.whistle(sim);
+  assert.ok(S.summoned(sim, a));
+  const c0 = Math.hypot(a.x - sim.player.x, a.y - sim.player.y);
+  for (let i = 0; i < 100; i++) S.tick(sim, 0.1, {});          // ten seconds: about half an hour
+  assert.ok(Math.hypot(a.x - sim.player.x, a.y - sim.player.y) < 6, "did not come to the player");
+  assert.equal(a.task, "chop");
+  for (let i = 0; i < 200; i++) S.tick(sim, 0.1, {});          // past the half hour
+  assert.ok(!S.summoned(sim, a), "still with you after half an hour");
+  for (let i = 0; i < 600; i++) S.tick(sim, 0.1, {});
+  assert.ok(Math.hypot(a.x - sim.player.x, a.y - sim.player.y) > 6 || sim.deadfalls[0].done > 0, "never went back to work");
 });
 
 t("no camp at dusk: they spend the night with you and keep their task", () => {
