@@ -100,6 +100,13 @@ title button. `#nosplash` skips it.
   home with the pair of hands that lit it. Every attempt spends one. You can
   always walk out alone.
 
+## The keystone morning (`night.js`)
+
+On the third morning you wake and the camp is empty. They come back in out of the
+trees one at a time, in a shuffled order, a way off (`startKeystone`). One real
+person was swapped in the night so that some of them are, and some are not. The
+plan opens when the last is back. From seed, no run-stream draws; old saves skip it.
+
 ## Your own mind (`phantom.js`)
 
 Your meter drains like everyone's and nothing announces it. Below 0.55 the ground
@@ -113,7 +120,6 @@ number or word for the meter is ever shown.
 
 ## Not built in 0.1, on purpose
 
-- The keystone morning (everyone vanishes and comes back in a new order).
 - Further hallucinations: dead pylons seen as live, people who are not there.
 - Meta-progression across runs (points returned for who you bring home).
 - Seven's "four identical cairns" lesson is designed in: every landmark is drawn

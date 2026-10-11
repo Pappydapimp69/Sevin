@@ -13,9 +13,64 @@ import { CELL, AREA_H, center } from "./world.js";
 import { bendVoice } from "./voice.js";
 import { SKILLS } from "./skills.js";
 import { reconcile } from "./phantom.js";
+import { stream, hash } from "./rng.js";
 
 export const NIGHT_DRAWS = 2 + MAX_SLOTS * 2 + 4;
 export const BEARINGS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"];
+
+/**
+ * Someone is taken in the night and something takes the slot: same name, a
+ * little better at the work, a whistle with one thing slightly off. The real
+ * one is out in the woods; the other sits at the fire as if nothing happened.
+ */
+export function swapOut(sim, taken, ang01, d01, d) {
+  const camp = sim.camp, p = sim.player;
+  const from = camp.up ? camp : p;
+  const spot = placeMissing(sim, from, ang01 * Math.PI * 2, d01);
+  sim.missing.push({
+    id: taken.id, name: taken.name, slot: taken.slot, skills: { ...taken.skills }, sanity: taken.sanity, voice: taken.voice,
+    x: spot.x, y: spot.y, area: spot.area, nights: 1, found: false, lost: false, takenDay: d,
+  });
+  sim.members = sim.members.filter((m) => m !== taken);
+  const sk = taken.skills;
+  const fakeId = sim.nextId++;
+  const fake = {
+    id: fakeId, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
+    skills: Object.fromEntries(SKILLS.map((k) => [k, Math.min(6, (sk[k] || 0) + 1)])),
+    sanity: 1, x: taken.x, y: taken.y, task: taken.task, state: "idle", stateT: 0, load: 0, worked: 0,
+    goal: null, home: false, gone: false, quiet: 0, trainee: false, since: d + 1,
+  };
+  if (!atCamp(sim, fake) && camp.up) { fake.x = camp.x + 2; fake.y = camp.y + 1; }
+  sim.members.push(fake);
+  sim.members.sort((a, b) => a.slot - b.slot);
+  return fake;
+}
+
+/**
+ * THE KEYSTONE MORNING. On the third morning you wake and the camp is empty.
+ * They come back one at a time, in no order you could have predicted, as you
+ * come into range. Some of them are, some are not, and from here on no
+ * certainty about anyone is available. One real person was quietly swapped in
+ * the night so that this is true. Derived from the seed; draws nothing.
+ */
+export const KEYSTONE_DAY = 3;
+export function startKeystone(sim, d) {
+  const k = sim.keystone;
+  const people = party(sim);
+  if (k.done || k.active || people.length < 2) return;
+  const r = stream(hash("keystone", sim.seed));
+  const reals = people.filter((m) => !m.fake);
+  if (reals.length > 1) {
+    const victim = reals[Math.floor(r() * reals.length)];
+    swapOut(sim, victim, r(), r(), d);
+  }
+  const all = party(sim).slice();
+  for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [all[i], all[j]] = [all[j], all[i]]; }
+  for (const m of all) { m.away = true; m.state = "idle"; m.watch = false; }
+  sim.keystone = { done: false, active: true, order: all.map((m) => m.id), nextAt: sim.time + 0.25 };
+  sim.plan.pending = null;                     // nobody to plan for yet
+  say(sim, "You wake and nobody is here. The camp is empty.", "warn");
+}
 
 /**
  * How likely the night is to pick this person, weighted by exposure: outside
@@ -125,26 +180,7 @@ export function sleep(sim) {
 
   if (taken) {
     const [ang01, d01] = slotDraws[taken.slot % MAX_SLOTS];
-    const from = camp.up ? camp : p;
-    const spot = placeMissing(sim, from, ang01 * Math.PI * 2, d01);
-    sim.missing.push({
-      id: taken.id, name: taken.name, slot: taken.slot, skills: { ...taken.skills }, sanity: taken.sanity, voice: taken.voice,
-      x: spot.x, y: spot.y, area: spot.area, nights: 1, found: false, lost: false, takenDay: d,
-    });
-    sim.members = sim.members.filter((m) => m !== taken);
-    // Something takes the slot: same name, a little better at the work.
-    const sk = taken.skills;
-    const fakeId = sim.nextId++;
-    const fake = {
-      // their whistle, with one thing slightly wrong
-      id: fakeId, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
-      skills: Object.fromEntries(SKILLS.map((k) => [k, Math.min(6, (sk[k] || 0) + 1)])),
-      sanity: 1, x: taken.x, y: taken.y, task: taken.task, state: "idle", stateT: 0, load: 0, worked: 0,
-      goal: null, home: false, gone: false, quiet: 0, trainee: false, since: d + 1,
-    };
-    if (!atCamp(sim, fake) && camp.up) { fake.x = camp.x + 2; fake.y = camp.y + 1; }
-    sim.members.push(fake);
-    sim.members.sort((a, b) => a.slot - b.slot);
+    swapOut(sim, taken, ang01, d01, d);
   }
 
   // morning: what you saw snaps back to what was true
@@ -189,6 +225,7 @@ export function sleep(sim) {
   // at camp, or anywhere if there is no camp: you wake with whoever is around
   sim.plan.pending = !camp.up || atCamp(sim, p) ? "dawn" : null;
   sim.plan.day = nd;
+  if (nd === KEYSTONE_DAY && !sim.keystone.done) startKeystone(sim, d);
 
   const lines = [`Day ${nd}.`];
   if (!fireHeld && camp.up && camp.lit === false) lines.push("The fire was out before light.");

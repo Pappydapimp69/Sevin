@@ -87,6 +87,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     call: null,                               // the dawn call, if any
     lastFollowCall: -1,
     phantom: Phantom.fresh(),
+    keystone: { done: false, active: false, order: [], nextAt: 0 },
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -283,7 +284,7 @@ export function note(sim, { verb, actor, object = null, cls = null, x, y, withWh
 // People
 // ---------------------------------------------------------------------------
 
-export const party = (sim) => sim.members.filter((m) => !m.gone && !m.home);
+export const party = (sim) => sim.members.filter((m) => !m.gone && !m.home && !m.away);
 export const real = (sim) => party(sim).filter((m) => !m.fake);
 export const byId = (sim, id) => sim.members.find((m) => m.id === id);
 export const nameOf = (sim, id) => (id === "you" ? "you" : byId(sim, id)?.name || "someone");
@@ -691,6 +692,31 @@ function memberTends(sim, m) {
   practice(sim, m, "fire");
 }
 
+/** The keystone morning: one comes back in out of the trees every little while. */
+function keystoneStep(sim) {
+  const k = sim.keystone;
+  if (!k.active || sim.time < k.nextAt) return;
+  const m = byId(sim, k.order.shift());
+  if (m) {
+    const r = stream(hash("return", sim.seed, m.id));
+    let x = sim.player.x, y = sim.player.y;
+    for (let i = 0; i < 20; i++) {                    // out of the trees, a way off
+      const a = r() * Math.PI * 2, d = 14 + r() * 8;
+      const cx = sim.player.x + Math.cos(a) * d, cy = sim.player.y + Math.sin(a) * d;
+      if (canStand(sim, cx, cy) && reachable(sim, sim.player, { x: cx, y: cy })) { x = cx; y = cy; break; }
+    }
+    m.away = false; m.x = x; m.y = y; m.called = true; m.state = "idle";
+    say(sim, `${m.name} comes in out of the trees.`, "talk");
+    sim.events.push({ kind: "returned", id: m.id });
+  }
+  k.nextAt = sim.time + 0.3 + stream(hash("gap", sim.seed, k.order.length))() * 0.3;
+  if (!k.order.length) {
+    k.active = false; k.done = true;
+    sim.plan.pending = sim.camp.up ? "dawn" : "dawn";
+    say(sim, "That is everyone.", "info");
+  }
+}
+
 /** Light the fire, or feed it, from the camp's woodpile. */
 export function tendFire(sim) {
   if (!sim.camp.up) return false;
@@ -1076,6 +1102,7 @@ export function tick(sim, dt, input = {}) {
   const before = sim.time;
   sim.time += hours;
 
+  keystoneStep(sim);
   tickWork(sim, hours, dt);
   dropWood(sim);
   for (const m of party(sim)) tickMember(sim, m, dt * speed, hours);

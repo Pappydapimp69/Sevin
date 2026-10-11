@@ -25,6 +25,9 @@ export function loadRun() {
     if (sim.v !== SAVE_VERSION) return null;
     sim.msgs = []; sim.events = [];
     sim.phantom ||= freshPhantom();
+    // a run already past the third morning has had its keystone (or never will)
+    sim.keystone ||= { done: true, active: false, order: [], nextAt: 0 };
+    for (const m of sim.members) m.away ||= false;
     // saves from before there were five skills: the new ones at 0 (a missing
     // one would be undefined, and arithmetic on it NaN, quietly, in the night)
     for (const m of [...sim.members, ...sim.missing]) m.skills = fillSkills(m.skills);

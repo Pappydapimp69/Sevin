@@ -83,6 +83,7 @@ function takenOver(watch, seeds = 60, nights = 5) {
   for (let seed = 0; seed < seeds; seed++) {
     const sim = S.createRun({ seed, camp: true });
     sim.plan.dawnDay = 1; sim.player.x = sim.camp.x; sim.player.y = sim.camp.y;
+    sim.keystone.done = true;                    // this measures the nightly take, not the third morning
     for (const m of sim.members) m.skills.watch = watch;
     for (let i = 0; i < nights; i++) {
       while (!S.isNight(sim.time)) { S.tick(sim, 0.1, {}); if (sim.plan.pending) S.setDuskPlan(sim, {}); }
