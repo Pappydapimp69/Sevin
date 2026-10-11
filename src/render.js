@@ -5,6 +5,7 @@ import * as THREE from "../lib/three.module.js";
 import { phantomSticks, phantomWatchers, seesPylonLit, shownFire } from "./percept.js";
 import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
+import { createIllusions } from "./illusions.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
 const SLOT_COLOURS = [0xc8553d, 0x2e86ab, 0xf6ae2d, 0x86bbd8, 0x8f6593, 0x5c946e, 0xd4a373, 0x9b9b9b];
@@ -21,19 +22,20 @@ export function createRenderer(canvas) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 400);
   camera.rotation.order = "YXZ";
-  let scene = null, built = null;
+  let scene = null, built = null, calmPref = false;
 
   // The setting is the field of view on a landscape screen. Held upright, a
   // phone would see a sliver of the world at the same vertical angle, so the
   // vertical angle opens until the sideways view is at least 70 degrees.
-  let fovPref = 72;
+  let fovPref = 72, baseFov = 72, fovAdd = 0;
   function resize() {
     const w = canvas.clientWidth || window.innerWidth, h = canvas.clientHeight || window.innerHeight;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     const minH = (70 * Math.PI) / 180;
     const needV = (2 * Math.atan(Math.tan(minH / 2) / camera.aspect) * 180) / Math.PI;
-    camera.fov = Math.min(110, Math.max(fovPref, needV));
+    baseFov = Math.min(110, Math.max(fovPref, needV));
+    camera.fov = baseFov + fovAdd;
     camera.updateProjectionMatrix();
   }
   function setFov(f) { fovPref = f; resize(); }
@@ -65,7 +67,7 @@ export function createRenderer(canvas) {
     for (let cy = 0; cy < h; cy++)
       for (let cx = 0; cx < w; cx++) {
         const i = (cy * w + cx) * 4, o = world.walk[cy * w + cx];
-        const trail = Math.abs(cx - world.trailX[cy]) <= 1.5 && o;
+        const trail = (Math.abs(cx - world.trailX[cy]) <= 1.5 || world.decoyCells.has(cy * w + cx)) && o;
         const c = trail ? [118, 96, 64] : o ? [92, 110, 60] : [38, 56, 32];
         data.set([...c, 255], i);
       }
@@ -90,20 +92,23 @@ export function createRenderer(canvas) {
     const crownB = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: 0x2c5a31 }), n);
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     let a = 0, b = 0;
+    B.treeSlots = [];
     world.trees.forEach((t, i) => {
       s.set(t.s, t.s, t.s);
       p.set(t.x, 1.5 * t.s, -t.y);
       mtx.compose(p, q, s); trunk.setMatrixAt(i, mtx);
       p.set(t.x, (3 + 2.2) * t.s, -t.y);
       mtx.compose(p, q, s);
-      if (t.k < 0.5) crownA.setMatrixAt(a++, mtx); else crownB.setMatrixAt(b++, mtx);
+      if (t.k < 0.5) { B.treeSlots.push({ arr: crownA, idx: a }); crownA.setMatrixAt(a++, mtx); } else { B.treeSlots.push({ arr: crownB, idx: b }); crownB.setMatrixAt(b++, mtx); }
     });
     crownA.count = a; crownB.count = b;
-    B.crowns = [crownA, crownB];
+    B.crowns = [crownA, crownB]; B.trunkInst = trunk;
     scene.add(trunk, crownA, crownB);
 
     // landmarks, each drawn as what it is named
     for (const c of world.clearings) scene.add(landmark(c, world));
+    B.ill = createIllusions(THREE, scene, B, world, camera);
+    B.ill.setCalm(calmPref);
 
     // deadfalls
     B.deadfalls = world.deadfalls.map((df) => {
@@ -235,7 +240,11 @@ export function createRenderer(canvas) {
     scene.fog.color = sky;
     scene.fog.far = 14 + (look.fog - 14) * (0.25 + 0.75 * day);
     scene.fog.near = scene.fog.far * 0.15;
-    B.hemi.intensity = 0.12 + look.light * 0.9 * day;
+    const ill = B.ill.update(sim, dt);
+    if (ill.skyTint) { sky.lerp(new THREE.Color(0x6f8a5c), ill.skyTint * day + ill.skyTint * 0.2); scene.background = sky; scene.fog.color = sky; }
+    scene.fog.far *= ill.fogMul; scene.fog.near = scene.fog.far * 0.15;
+    if (Math.abs(ill.fovAdd - fovAdd) > 0.01) { fovAdd += (ill.fovAdd - fovAdd) * Math.min(1, dt * 6); camera.fov = baseFov + fovAdd; camera.updateProjectionMatrix(); }
+    B.hemi.intensity = (0.12 + look.light * 0.9 * day) * ill.lightMul;
     B.sun.intensity = 0.8 * look.light * day;
     B.groundMat.color.set(weather === "cold" ? 0xdfe8ee : 0xffffff);
 
@@ -450,7 +459,8 @@ export function createRenderer(canvas) {
     return null;
   }
 
-  return { draw, pick, resize, setFov, camera, renderer, get built() { return built; } };
+  function setCalm(v) { calmPref = !!v; built?.ill?.setCalm(v); }
+  return { draw, pick, resize, setFov, setCalm, camera, renderer, get built() { return built; } };
 }
 
 function pylonMesh(mossed) {

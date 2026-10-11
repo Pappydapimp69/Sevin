@@ -124,6 +124,27 @@ schedule and asks to be fed; feeding spends REAL wood and warms nothing. Others 
 camp tend the real fire, which ends it. Morning snaps shown back to true. No
 number or word for the meter is ever shown.
 
+## Dead ends and the world (`mirage.js`, `illusions.js`)
+
+After the third deadfall, 2-3 spurs leave the trail in the same dirt and end in a
+small empty clearing (`world.js`, a side stream, so older content is unchanged).
+For a mind that is going (below `MIRAGE_MIND`, 0.7, set on first walking in; a
+steadier one gets plain dead ends for good): turn round and trees close the
+way in; turn back and the dead end is a castle, a chest or a hole (by seed) that
+draws away as you walk at it, the view opening and the fog drawing back while
+you do; turn round and the way is back; turn back and it is gone, for good. A
+timeout (4.5 game hours) opens the way whatever happens. Teammates see none of it.
+
+World effects, all from the seed and the place, gated by the same hidden meter,
+and all corrected by the world: trees lean in as you pass, rocks swell and show
+a face for under a second, the fog breathes, the sky goes green, daylight
+stutters, a moon too big and too low at night (then a second), a far camp-fire
+that is out when you reach it, eyes on trunks that shut when looked at,
+whispers, a compass that will not sit. Settings has Calm, which turns the camera
+and world effects off. Brain T1 stands: a reactive hallucination is more
+interesting but harder to hold to "stable reads as a place"; the seal is
+state-driven and fixed to place for that reason.
+
 ## Not built in 0.1, on purpose
 
 - Further hallucinations: dead pylons seen as live, people who are not there.

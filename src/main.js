@@ -43,6 +43,7 @@ function applySettings(st) {
   input.state.sens = st.sens;
   audio.setVolume(st.volume);
   renderer.setFov(st.fov);
+  renderer.setCalm(st.calm);
   document.documentElement.style.setProperty("--ui", { small: "13px", normal: "16px", large: "20px" }[st.ui] || "16px");
 }
 applySettings(prefs);

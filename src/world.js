@@ -135,6 +135,39 @@ export function generateWorld(seed) {
     }
   }
 
+  // --- decoy paths: they look like the trail and lead nowhere ----------------
+  // After the third deadfall (the last area), spurs leave the trail that are
+  // drawn as the same dirt and end in a small clearing with nothing in it.
+  // Real dead ends, there with or without a failing mind. A side stream, so
+  // nothing before this point changes for a seed.
+  const decoys = [], decoyCells = new Set();
+  {
+    const dr = stream(hash("decoy", seed));
+    const first = (DEADFALL_AREAS[DEADFALL_AREAS.length - 1] + 1) * AREA_H;     // first row after the third deadfall
+    const free = (cells) => cells.every(([x, y]) => x >= 2 && x <= W - 3 && y >= first - 4 && y < H - 9 && !walk[idx(x, y)]);
+    for (let tries = 0; tries < 120 && decoys.length < 3; tries++) {
+      const cy = first + Math.floor(dr() * (H - 9 - first - 3));
+      const tx = Math.round(trailX[cy]);
+      if (decoys.some((d) => Math.abs(d.cy - cy) < 8)) continue;
+      const pref = tx < W / 2 ? 1 : -1;
+      for (const side of [pref, -pref]) {
+        const L = 7, spur = [];
+        for (let j = 2; j < 2 + L; j++) for (let dy = -1; dy <= 1; dy++) spur.push([tx + side * j, cy + dy]);
+        const ccx = tx + side * (2 + L + 2), ring = [];
+        for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (dx * dx + dy * dy <= 10) ring.push([ccx + dx, cy + dy]);
+        if (!free(spur) || !free(ring)) continue;
+        for (const [x, y] of spur) { open(x, y); decoyCells.add(idx(x, y)); }
+        for (const [x, y] of ring) open(x, y);
+        // the band across the path that the trees close over when the way in is "gone"
+        const seal = [];
+        for (const j of [4, 5]) for (let dy = -1; dy <= 1; dy++) seal.push([tx + side * j, cy + dy]);
+        decoys.push({ id: decoys.length, cy, side, area: AREAS - 1, entrance: { x: center(tx + side * 2), y: center(cy) }, inDir: { x: side, y: 0 },
+          clearing: { x: center(ccx), y: center(cy), r: 6 }, seal, sealCenter: { x: center(tx + side * 4.5), y: center(cy) } });
+        break;
+      }
+    }
+  }
+
   // --- trees: only where they can be seen (near open ground) -----------------
   const near = new Uint8Array(W * H);
   for (let cy = 0; cy < H; cy++)
@@ -158,7 +191,7 @@ export function generateWorld(seed) {
 
   const startCamp = clearings.find((c) => c.area === 0);
   return {
-    seed, w: W, h: H, areas: AREAS, walk, trailX, clearings, farSide, deadfalls, pylons, sticks, trees,
+    seed, w: W, h: H, areas: AREAS, walk, trailX, clearings, farSide, deadfalls, pylons, sticks, trees, decoys, decoyCells,
     start: { x: center(Math.round(trailX[2])), y: center(2) },
     startCamp: { x: startCamp.x, y: startCamp.y },
   };
@@ -201,7 +234,7 @@ export function tutorialWorld() {
       trees.push({ x: center(cx) + (tr() - 0.5) * 1.2, y: center(cy) + (tr() - 0.5) * 1.2, s: 0.8 + tr() * 0.6, k: tr() });
     }
   return {
-    seed: 0, tutorial: true, w, h, areas: 1, walk, trailX, clearings, farSide: null, deadfalls, pylons, sticks, trees,
+    seed: 0, tutorial: true, w, h, areas: 1, walk, trailX, clearings, farSide: null, deadfalls, pylons, sticks, trees, decoys: [], decoyCells: new Set(),
     start: { x: center(20), y: center(4) }, startCamp: { x: center(20), y: center(11) },
   };
 }

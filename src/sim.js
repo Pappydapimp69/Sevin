@@ -15,6 +15,7 @@ import { record, WEATHERS } from "./chronicle.js";
 import { makeVoice } from "./voice.js";
 import { SKILLS, fillSkills, TASK_SKILL } from "./skills.js";
 import * as Phantom from "./phantom.js";
+import * as Mirage from "./mirage.js";
 export { TASK_SKILL };
 
 export const SAVE_VERSION = 1;
@@ -90,6 +91,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     phantom: Phantom.fresh(),
     keystone: { done: false, active: false, order: [], nextAt: 0 },
     whistleWindow: 0,
+    mirage: {},
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -122,6 +124,9 @@ export function attach(sim, world) {
   Object.defineProperty(sim, "world", { value: world || (sim.tutorial ? tutorialWorld() : generateWorld(sim.seed)), enumerable: false, writable: true, configurable: true });
   Object.defineProperty(sim, "rng", { value: makeRng(sim.rngState), enumerable: false, writable: true, configurable: true });
   Object.defineProperty(sim, "fields", { value: new Map(), enumerable: false, writable: true, configurable: true });
+  Object.defineProperty(sim, "sealedCells", { value: new Set(), enumerable: false, writable: true, configurable: true });
+  sim.mirage ||= {};
+  for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
   return sim;
 }
 
@@ -187,6 +192,7 @@ export function say(sim, text, kind = "info") {
 // A cell is passable if the world opens it and no uncut deadfall lies on it.
 export function passable(sim, cx, cy) {
   if (!open(sim.world, cx, cy)) return false;
+  if (sim.sealedCells && sim.sealedCells.has(cx + "," + cy)) return false;     // trees across the way in (mirage.js)
   for (let i = 0; i < sim.world.deadfalls.length; i++) {
     if (sim.deadfalls[i].done >= 1) continue;
     for (const [dx, dy] of sim.world.deadfalls[i].cells) if (dx === cx && dy === cy) return false;
@@ -204,7 +210,7 @@ export function canStand(sim, x, y) {
 // Distance field to a target cell, cached by target and by which deadfalls are
 // cut (cutting one changes every path north).
 function field(sim, tx, ty) {
-  const gate = sim.deadfalls.map((d) => (d.done >= 1 ? 1 : 0)).join("");
+  const gate = sim.deadfalls.map((d) => (d.done >= 1 ? 1 : 0)).join("") + (sim.sealedCells && sim.sealedCells.size ? "s" + sim.sealedCells.size : "");
   const key = tx + "," + ty + "," + gate;
   let f = sim.fields.get(key);
   if (f) return f;
@@ -1142,6 +1148,7 @@ export function tick(sim, dt, input = {}) {
 
   if (sim.whistleWindow > 0) sim.whistleWindow = Math.max(0, sim.whistleWindow - dt);   // real seconds
   keystoneStep(sim);
+  Mirage.tickMirage(sim, dt, input);
   tickWork(sim, hours, dt);
   dropWood(sim);
   for (const m of party(sim)) tickMember(sim, m, dt * speed, hours);

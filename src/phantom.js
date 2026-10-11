@@ -17,6 +17,8 @@ export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to
 export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {} });
 
 const mind = (sim) => sim.player.sanity;
+/** The level of the failing mind as a number, for the world that draws it. Never shown. */
+export const mindLevel = mind;
 
 // A phantom stick sits where it sits: the world is cut into 5 m cells and each
 // cell either holds one or does not, from (seed, day, cell). Nothing is placed

@@ -1,0 +1,84 @@
+// mirage.js — the dead-end clearings. Mutates sim.mirage and sim.sealedCells only.
+//
+// A decoy path (world.js) leads to a small clearing with nothing in it. For a
+// mind that is going, it does not stay nothing:
+//
+//   walk in, deep enough ........ armed (a mind not far enough gone: plain, for good)
+//   turn round (face the way out) the way in is gone: trees across it (sealed)
+//   turn back (face the dead end) the dead end becomes a castle, a chest, a hole,
+//                                 and walking at it only draws it away (shown)
+//   turn round again ............ the way in is back (restored)
+//   turn back again ............. the mirage is gone, for good, there (gone)
+//
+// Fixed to place and to the clearing; the object is chosen from the seed; a
+// timeout puts the way back whatever happens, so it can never trap anyone.
+// Teammates see none of it. Nothing here draws from the run stream.
+
+import { stream, hash } from "./rng.js";
+import { mindLevel } from "./phantom.js";
+
+export const MIRAGE_MIND = 0.7;
+export const KINDS = ["castle", "chest", "hole"];
+const SEAL_HOURS = 4.5;                  // game hours, ~90 s: the way back never stays shut
+
+export const blocked = (st) => !!st && (st.s === "sealed" || st.s === "shown");
+export const kindFor = (sim, d) => KINDS[Math.floor(stream(hash("mirage", sim.seed, d.id))() * KINDS.length)];
+
+function setSeal(sim, d, on) {
+  for (const [x, y] of d.seal) on ? sim.sealedCells.add(x + "," + y) : sim.sealedCells.delete(x + "," + y);
+  sim.fields.clear();
+}
+
+export function tickMirage(sim, dt, input = {}) {
+  const decoys = sim.world.decoys;
+  if (!decoys || !decoys.length || sim.tutorial) return;
+  const p = sim.player;
+  const fx = Math.sin(p.yaw), fy = Math.cos(p.yaw);
+  for (const d of decoys) {
+    const st = (sim.mirage[d.id] ||= { s: "idle", stretch: 0 });
+    if (st.s === "gone" || st.s === "plain") continue;
+    const rx = p.x - d.entrance.x, ry = p.y - d.entrance.y;
+    const depth = rx * d.inDir.x + ry * d.inDir.y;                 // metres in along the spur
+    const side = Math.abs(rx * -d.inDir.y + ry * d.inDir.x);
+    const deep = depth > 15 && depth < 32 && side < 7;
+    const f = fx * d.inDir.x + fy * d.inDir.y;                     // +1 looking in, -1 looking out
+    switch (st.s) {
+      case "idle":
+        if (deep) st.s = mindLevel(sim) < MIRAGE_MIND ? "armed" : "plain";
+        break;
+      case "armed":
+        if (!deep && depth < 8) st.s = "idle";                      // walked back out before anything happened
+        else if (deep && f < -0.55) { st.s = "sealed"; st.t0 = sim.time; setSeal(sim, d, true); sim.events.push({ kind: "seal" }); }
+        break;
+      case "sealed":
+        if (f > 0.55) {
+          st.s = "shown";
+          st.obj = { x: d.clearing.x, y: d.clearing.y };                  // the dead end, grown into something, ahead
+          st.dist = Math.max(6, Math.hypot(st.obj.x - p.x, st.obj.y - p.y)); st.stretch = 0;
+          sim.events.push({ kind: "shown" });
+        }
+        break;
+      case "shown": {
+        // Walk at it and it draws away: the distance does not close, so the world
+        // seems to stretch. Nothing about your movement changes.
+        const o = st.obj, dnow = Math.hypot(o.x - p.x, o.y - p.y);
+        const closed = Math.max(0, st.dist - dnow);
+        if (closed > 0) { o.x += d.inDir.x * closed * 1.15; o.y += d.inDir.y * closed * 1.15; }
+        const nd = Math.hypot(o.x - p.x, o.y - p.y);
+        st.dist = Math.min(nd, 80);
+        // pressing on counts too: against the wall you still walk, and it still gets further
+        const push = (input.fwd || 0) > 0.05 && f > 0.3 ? 1 : 0;
+        if (push && closed < 1e-3) { o.x += d.inDir.x * 3.6 * dt; o.y += d.inDir.y * 3.6 * dt; st.dist = Math.hypot(o.x - p.x, o.y - p.y); }
+        const rate = Math.max(push, Math.min(1, closed / Math.max(1e-3, 3.6 * dt)));
+        st.stretch += (rate - st.stretch) * Math.min(1, dt * 3);
+        if (f < -0.55) { st.s = "restored"; st.stretch = 0; delete st.obj; setSeal(sim, d, false); sim.events.push({ kind: "restore" }); }
+        break;
+      }
+      case "restored":
+        if (deep && f > 0.55) { st.s = "gone"; sim.events.push({ kind: "gone" }); }
+        else if (depth < 10) st.s = "plain";                          // left: it will not come again
+        break;
+    }
+    if (blocked(st) && sim.time - (st.t0 ?? sim.time) > SEAL_HOURS) { st.s = "restored"; st.stretch = 0; delete st.obj; setSeal(sim, d, false); }
+  }
+}

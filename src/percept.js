@@ -64,6 +64,6 @@ export function chatter(sim, m, tick) {
   return pool[Math.floor(r * pool.length)];
 }
 
-export { phantomSticks, phantomWatchers, seesPylonLit, shownWood, shownFire } from "./phantom.js";
+export { phantomSticks, phantomWatchers, seesPylonLit, shownWood, shownFire, mindLevel } from "./phantom.js";
 
 export const visibleParty = (sim) => party(sim);

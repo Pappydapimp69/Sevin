@@ -25,6 +25,7 @@ export function loadRun() {
     if (sim.v !== SAVE_VERSION) return null;
     sim.msgs = []; sim.events = [];
     sim.phantom ||= freshPhantom();
+    sim.mirage ||= {};
     // a run already past the third morning has had its keystone (or never will)
     sim.keystone ||= { done: true, active: false, order: [], nextAt: 0 };
     for (const m of sim.members) m.away ||= false;
@@ -55,7 +56,7 @@ export function runs() {
 }
 
 export function settings() {
-  const base = { sens: 1, fov: 72, volume: 0.7, ui: "normal", tutorialDone: false, team: "clearers" };
+  const base = { sens: 1, fov: 72, volume: 0.7, ui: "normal", tutorialDone: false, team: "clearers", calm: false };
   try { return { ...base, ...JSON.parse(get(SETTINGS) || "{}") }; } catch { return base; }
 }
 export function saveSettings(s) { set(SETTINGS, JSON.stringify(s)); }

@@ -5,7 +5,7 @@
 // is released; closing it is always one click or Esc.
 
 import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
-import { accountFor, askableDays, shownWood, shownFire } from "./percept.js";
+import { accountFor, askableDays, shownWood, shownFire, mindLevel } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
 import { SKILLS, SKILL_LABEL, SKILL_WHAT, TEAMS, DEFAULT_TEAM, teamSkills, teamFocus } from "./skills.js";
@@ -287,12 +287,14 @@ export function createUI(api) {
     };
     const sizes = ["small", "normal", "large"];
     const sizeRow = h("span", {}, sizes.map((z) => btn(z, (e) => { st.ui = z; api.applySettings(st); for (const b of e.target.parentNode.children) b.classList.toggle("sel", b === e.target); }, "tiny" + (st.ui === z ? " sel" : ""))));
+    const calmRow = h("span", {}, btn(st.calm ? "On" : "Off", (e) => { st.calm = !st.calm; e.target.textContent = st.calm ? "On" : "Off"; e.target.classList.toggle("sel", st.calm); api.applySettings(st); }, "tiny" + (st.calm ? " sel" : "")));
     show("settings", h("h2", {}, "Settings"),
       h("table", { class: "grid" },
         row("Volume", range("volume", 0, 1, 0.1, (v) => Math.round(v * 100) + "%")),
         row("Look speed", range("sens", 0.3, 3, 0.1, (v) => v.toFixed(1) + "x")),
         row("Field of view", range("fov", 60, 100, 5, (v) => v + "°")),
         row("Text size", sizeRow),
+        row("Calm (no camera or world effects)", calmRow),
       ),
       h("div", { class: "row" }, btn("Back", back || close, "primary")));
     onCancel = back || close;
@@ -335,7 +337,8 @@ export function createUI(api) {
     if (sim.player.carryingKit) bits.push("the camp kit");
     if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(shownFire(sim))}`);
     $("carry").textContent = bits.join(" · ");
-    $("compass").textContent = compass(sim.player.yaw + (compassOffset(sim) * Math.PI) / 4);
+    const shake = mindLevel(sim) < 0.4 && !sim.tutorial ? Math.sin(sim.time * 90) * 0.5 * (0.4 - mindLevel(sim)) : 0;      // the needle will not sit
+    $("compass").textContent = compass(sim.player.yaw + (compassOffset(sim) * Math.PI) / 4 + shake);
 
     // the prompt: the action in front of you, and who you are looking at
     const sch = api.scheme();

@@ -9,7 +9,7 @@ export function createAudio() {
   let ctx = null, master = null, noise = null;
   let wind = null, fire = null, bed = [];
   let volume = 0.7;
-  let behindClock = 20, chopClock = 0, stepClock = 0, crackleClock = 0;
+  let behindClock = 20, chopClock = 0, stepClock = 0, crackleClock = 0, whisperClock = 20;
 
   function unlock() {
     if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
@@ -124,6 +124,10 @@ export function createAudio() {
         break;
       }
       case "dawn": if (sim.call) setTimeout(() => call(sim.call.bearing, sim.player.yaw), 600); break;
+      case "seal": burst({ freq: 90, dur: 1.4, gain: 0.7, type: "lowpass" }); tone(70, 1.8, 0.2, 0, -25, "sawtooth"); break;
+      case "shown": tone(523, 2.2, 0.1, 0, 0, "triangle"); tone(622, 2.4, 0.08, 0, 0, "triangle", 0.2); break;
+      case "restore": burst({ freq: 300, dur: 0.8, gain: 0.3, type: "lowpass" }); break;
+      case "gone": tone(440, 1.2, 0.12, 0, -300, "sine"); break;
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }
@@ -152,6 +156,14 @@ export function createAudio() {
     if (sim.player.sanity < 0.5 && behindClock <= 0) {
       behindClock = 18 + Math.random() * 24;
       for (let i = 0; i < 5; i++) setTimeout(() => burst({ freq: 380, dur: 0.08, gain: 0.14, type: "lowpass", pan: -0.3 + (i % 2) * 0.6 }), i * 420);
+    }
+
+    // whispers at the edge of hearing, from one side, too quiet to be words
+    whisperClock -= dt;
+    if (sim.player.sanity < 0.55 && !sim.tutorial && whisperClock <= 0) {
+      whisperClock = 14 + Math.random() * 30;
+      const pan = Math.random() < 0.5 ? -0.8 : 0.8;
+      for (let i = 0; i < 6; i++) setTimeout(() => burst({ freq: 2600 + Math.random() * 1800, q: 4, dur: 0.18, gain: 0.05, pan }), i * 150 + Math.random() * 80);
     }
 
     chopClock -= dt;
