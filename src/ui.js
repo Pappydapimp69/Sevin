@@ -106,7 +106,7 @@ export function createUI(api) {
       const sel = h("select", { "data-id": m.id, on: { change: (e) => (choice[m.id] = e.target.value) } },
         ...TASKS.map((t) => h("option", { value: t, selected: choice[m.id] === t }, TASK_LABEL[t])));
       return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel),
-        h("td", { class: "skills" }, SKILLS.map((k) => h("span", { title: SKILL_LABEL[k] }, k[0].toUpperCase() + " " + dots(m.skills[k]), " "))));
+        h("td", { class: "skills" }, SKILLS.map((k) => h("span", { class: "sk", title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])))));
     });
     const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[sim.call.bearing]}.`) : null;
     show("plan",
@@ -235,6 +235,7 @@ export function createUI(api) {
     if (sim.player.carryingKit) bits.push("the camp kit");
     if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(sim.camp)}`);
     $("carry").textContent = bits.join(" · ");
+    $("compass").textContent = compass(sim.player.yaw);
 
     // the prompt: the action in front of you, and who you are looking at
     const lines = [];
@@ -269,6 +270,17 @@ export function createUI(api) {
   function hideHud() { $("hud").hidden = true; }
 
   return { title, recruit, dawnPlan, duskPlan, ask, campMenu, pause, help, end, tutorialEnd, confirm, hud, close, resetLog, hideHud, get open() { return open; } };
+}
+
+const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+export function compass(yaw) {
+  const deg = (((yaw * 180) / Math.PI) % 360 + 360) % 360;
+  const out = [];
+  for (let k = -2; k <= 2; k++) {
+    const i = (((Math.round(deg / 45) + k) % 8) + 8) % 8;
+    out.push(k === 0 ? `[ ${POINTS[i]} ]` : POINTS[i]);
+  }
+  return out.join("   ");
 }
 
 function workText(w) {

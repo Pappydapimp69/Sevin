@@ -166,6 +166,24 @@ export function reachable(sim, from, to) {
   return f[toCell(from.x) + toCell(from.y) * sim.world.w] >= 0;
 }
 
+/** Cell-centre waypoints from one point to another along open ground. */
+export function route(sim, from, to) {
+  const f = field(sim, toCell(to.x), toCell(to.y));
+  const w = sim.world.w, out = [];
+  let cx = toCell(from.x), cy = toCell(from.y);
+  for (let k = 0; k < 4000 && f[cx + cy * w] > 0; k++) {
+    let best = null, bv = f[cx + cy * w];
+    for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const v = passable(sim, cx + ox, cy + oy) ? f[cx + ox + (cy + oy) * w] : -1;
+      if (v >= 0 && v < bv) { bv = v; best = [cx + ox, cy + oy]; }
+    }
+    if (!best) break;
+    [cx, cy] = best;
+    out.push({ x: center(cx), y: center(cy) });
+  }
+  return out;
+}
+
 // Step a body toward a point along the ground. Returns true on arrival.
 function steer(sim, m, gx, gy, speed, dt, stopAt = 0.6) {
   const dx = gx - m.x, dy = gy - m.y, d = Math.hypot(dx, dy);
@@ -292,8 +310,10 @@ function tickMember(sim, m, dt, hours) {
       break;
     }
     case "chop": {
-      const i = currentDeadfall(sim);
-      if (i < 0) { m.task = "follow"; break; }
+      // a bounded task: THIS deadfall. When it is through, they go back to camp.
+      if (m.chopId == null) m.chopId = currentDeadfall(sim);
+      const i = m.chopId;
+      if (i < 0 || sim.deadfalls[i].done >= 1) { m.task = "camp"; m.chopId = null; m.state = "idle"; break; }
       const df = sim.world.deadfalls[i];
       const spot = { x: df.x + ((m.slot % 3) - 1) * 1.6, y: df.y - 2.2 };
       if (!reachable(sim, m, spot)) { m.task = "follow"; break; }
@@ -649,10 +669,11 @@ export function askMember(sim, id, day) {
 export function setDawnPlan(sim, tasks) {
   for (const m of party(sim)) {
     const t = tasks[m.id] || "follow";
-    m.task = t; m.state = "idle"; m.site = null; m.stateT = 0;
+    m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null;
     note(sim, { verb: "assigned", actor: m.id, object: TASK_LABEL[t], cls: "task", x: sim.camp.x, y: sim.camp.y, key: "assigned:" + m.id });
   }
   sim.plan.pending = null;
+  sim.plan.dawnDay = today(sim);
   sim.events.push({ kind: "planned" });
 }
 
@@ -717,6 +738,9 @@ export function tick(sim, dt, input = {}) {
   }
 
   drain(sim, hours);
+
+  // the first morning: walking into camp is when the day gets planned
+  if (!sim.tutorial && sim.plan.dawnDay == null && sim.camp.up && atCamp(sim, p) && !isNight(sim.time) && !sim.work) sim.plan.pending = "dawn";
 
   // dusk: at camp, the night needs a plan
   if (!sim.tutorial && hourOf(sim.time) >= DUSK && hourOf(before) < DUSK) {

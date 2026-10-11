@@ -11,6 +11,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; col
 #hud { position: fixed; inset: 0; pointer-events: none; }
 #hud > * { position: absolute; text-shadow: 0 1px 3px #000, 0 0 8px #000; }
 #clock { top: 12px; left: 16px; font-size: 1.05em; }
+#compass { top: 12px; left: 50%; transform: translateX(-50%); color: var(--dim); letter-spacing: .1em; white-space: pre; }
 #carry { top: 12px; right: 16px; text-align: right; color: var(--dim); }
 #cross { left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255,255,255,.6); }
 #prompt { left: 0; right: 0; top: calc(50% + 28px); text-align: center; font-size: 1.1em; color: var(--accent); }
@@ -19,7 +20,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; col
 .msg { transition: opacity 2s; }
 .msg.old { opacity: 0.35; }
 .msg.warn { color: var(--warn); } .msg.bad { color: var(--bad); } .msg.good { color: var(--good); } .msg.talk { color: #cfd8e8; font-style: italic; }
-#tut { top: 48px; left: 50%; transform: translateX(-50%); width: min(640px, 92vw); padding: 12px 16px;
+#tut { top: 44px; left: 50%; transform: translateX(-50%); width: min(640px, 92vw); padding: 12px 16px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; text-shadow: none; pointer-events: auto; }
 #tut button { margin-top: 10px; }
 
@@ -52,9 +53,11 @@ button.day { padding: 4px 12px; }
 .grid th { color: var(--dim); }
 .grid .name { color: var(--accent); white-space: nowrap; }
 .grid .val { display: inline-block; width: 1.6em; text-align: center; }
+.grid .skills .sk { margin-right: 10px; }
 .grid .skills { font-size: .8em; color: var(--dim); white-space: nowrap; }
 select { font: inherit; background: #1d241c; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
 .account { margin-top: 12px; min-height: 120px; }
 .account p { margin: .3em 0; }
 .account .who { color: var(--dim); }
-@media (max-width: 600px) { :root { --ui: 14px; } .panel { padding: 14px; } .grid .skills { display: none; } }
+@media (max-width: 600px) { :root { --ui: 14px; } .panel { padding: 14px; } .grid .skills .sk { margin-right: 10px; }
+.grid .skills { display: none; } }

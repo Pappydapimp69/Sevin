@@ -16,7 +16,7 @@ export function namer(sim) {
 }
 
 // Days a member can be asked about: every day you have lived, including today.
-export const askableDays = (sim) => Array.from({ length: today(sim) }, (_, i) => i + 1).filter((d) => sim.chron[d]?.facts.length || d < today(sim));
+export const askableDays = (sim) => Array.from({ length: today(sim) }, (_, i) => i + 1).filter((d) => sim.chron[d]);
 
 /**
  * What `memberId` says about `day`. A real member tells the record. A fake

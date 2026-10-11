@@ -1,7 +1,7 @@
 // main.js — the loop and the wiring. Holds no rules of its own.
 
 import * as S from "./sim.js";
-import { sleep, canSleep } from "./night.js";
+import { sleep, canSleep, BEARINGS, bearingOf } from "./night.js";
 import { createRenderer } from "./render.js";
 import { createInput } from "./input.js";
 import { createUI } from "./ui.js";
@@ -46,8 +46,9 @@ function recruit(seed) {
   const names = makeRoster(stream(hash("names", seed)), 5);
   ui.recruit(names, (team) => {
     const run = S.createRun({ seed, party: team });
-    S.say(run, "You walk in at the south end of the trail. Camp is in the clearing ahead. North is the way through.");
-    S.say(run, "Somewhere north, a deadfall lies across the trail.");
+    const dir = BEARINGS[bearingOf(run.player, run.camp)];
+    S.say(run, `You walk in at the south end of the trail. Camp is in a clearing off the trail, ${dir} of you. North is the way through.`);
+    S.say(run, "Somewhere north, a deadfall lies across the trail. At camp you set the day's work.");
     start(run);
     Save.saveRun(run);
   }, () => recruit(freshSeed()));
@@ -132,7 +133,7 @@ function doSleep() {
 
 function openPending(sleepAfter = false) {
   if (sim.plan.pending === "dawn") {
-    ui.dawnPlan(sim, (choice) => { S.setDawnPlan(sim, choice); sim.plan.dawnDay = S.today(sim); Save.saveRun(sim); });
+    ui.dawnPlan(sim, (choice) => { S.setDawnPlan(sim, choice); Save.saveRun(sim); });
   } else if (sim.plan.pending === "dusk") {
     ui.duskPlan(sim, (watch, sleepNow) => {
       S.setDuskPlan(sim, watch);

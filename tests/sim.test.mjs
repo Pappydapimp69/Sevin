@@ -3,6 +3,7 @@ import * as S from "../src/sim.js";
 import { sleep } from "../src/night.js";
 import { createTutorial, tutorialStep, STEPS } from "../src/tutorial.js";
 import { readFileSync } from "node:fs";
+import { askableDays } from "../src/percept.js";
 
 t("anyone can chop; skill makes it faster, never zero", () => {
   assert.equal(S.chopRate("you"), 1);
@@ -142,4 +143,9 @@ t("only save.js touches localStorage", () => {
   for (const f of ["ui", "render", "main", "sim", "night", "percept", "input", "tutorial", "world", "chronicle"]) {
     assert.ok(!readFileSync(new URL(`../src/${f}.js`, import.meta.url), "utf8").includes("localStorage"), f);
   }
+});
+
+t("you can always ask about today, even before anything has happened", () => {
+  const sim = S.createRun({ seed: 4 });
+  assert.deepEqual(askableDays(sim), [1]);
 });

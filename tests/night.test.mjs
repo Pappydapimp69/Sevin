@@ -92,3 +92,12 @@ t("asking costs half an hour and draws nothing from the run", () => {
   assert.ok(Math.abs(sim.time - t0 - S.ASK_HOURS) < 0.05, `${sim.time - t0}`);
   assert.equal(sim.rngState, r0);
 });
+
+t("every night advances exactly one day and keeps every day's record", () => {
+  for (let seed = 0; seed < 30; seed++) {
+    const sim = nights(seed, 6, true);
+    assert.equal(S.today(sim), 7);
+    for (let d = 1; d <= 7; d++) assert.ok(sim.chron[d], `seed ${seed} lost day ${d}`);
+    assert.ok(sim.chron[1].facts.length > 0, `seed ${seed}: day 1 record was wiped`);
+  }
+});

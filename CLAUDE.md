@@ -1,3 +1,37 @@
+# SEVIN
+
+THE WOODS rebuilt from an empty repo. Seven (`Pappydapimp69/Seven`) holds the
+design of record and does not work as a game at 0.40 (tutorial, UI, camp and
+deadfall broken, per the owner). SEVIN keeps the design and the house rules and
+none of the code. Read `docs/blueprint.md` first.
+
+## House rules — still binding
+
+- `sim.js` and `night.js` are the only mutators of a run. `percept.js` is the
+  only module allowed to lie; it reads sim and never writes it. `render.js` and
+  `ui.js` draw; they never decide.
+- **The hidden meter never reaches the screen** — no number, no band name, no
+  word for it. `tests/sim.test.mjs` greps the UI for it.
+- **Constant roll count.** Every decision draws a fixed number of times. A
+  night draws `NIGHT_DRAWS`, always. Asking draws nothing from the run stream:
+  a fake's lie comes from a side stream keyed on (seed, fake, day).
+- **Anything that gates an rng draw is save state.**
+- **One seed per run.** The world is a pure function of it; saves regenerate.
+- **Tells are DERIVED, never authored.** `chronicle.js` bends one fact using
+  values from the same day, and only facts the player witnessed.
+- **Negative-control every guard.** Break what it watches, watch it fail.
+- Only `save.js` touches `localStorage`, keys `sevin:*` (one origin per
+  GitHub account on Pages).
+
+## Testing
+
+- `npm test` — pure tier, every change.
+- Browser play-throughs (Playwright, `/opt/pw-browsers/chromium` with
+  `--headless=new` and SwiftShader) — once per batch. `window.__sevin` exposes
+  the sim and verbs for them.
+- A green suite says nothing about whether it is FUN or READABLE (Brain T11).
+  A human playing a day is the test that matters.
+
 <!-- brain:pointer v2 — managed by `brain link`/`sync`; edits here are overwritten -->
 ## Cognitive system: Brain (linked via `brain` CLI)
 This project is linked to the Brain cognitive system. Do not read the node

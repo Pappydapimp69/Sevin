@@ -128,8 +128,11 @@ export function sleep(sim) {
   }
 
   // --- dawn -------------------------------------------------------------------
-  sim.time += hours;
+  // Dawn is an exact time. Adding hours to a float can land a hair short of it,
+  // which would make "tomorrow" today and overwrite today's record.
+  sim.time = DAWN + 24 * d;
   const nd = today(sim);
+  if (nd !== d + 1 || sim.chron[nd]) throw new Error("night: dawn did not advance the day");
   sim.weather[nd] = WEATHERS[Math.floor(rWeather * WEATHERS.length)];
   sim.chron[nd] = { weather: sim.weather[nd], facts: [] };
   for (const m of party(sim)) {

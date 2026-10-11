@@ -68,8 +68,26 @@ different game. SEVIN has one game, so each module has one job.
 
 ## Not built in 0.1, on purpose
 
-The keystone morning (everyone vanishes), fabricated fires, meta-progression
-across runs. Each is in the design note.
+- The keystone morning (everyone vanishes and comes back in a new order).
+- Your own mind going: the player's hidden meter drains but changes nothing yet.
+  The design's fabricated fire and phantom wood belong here.
+- Meta-progression across runs (points returned for who you bring home).
+- Seven's "four identical cairns" lesson is designed in: every landmark is drawn
+  as what it is named, and no two in one area share a kind.
+
+## Numbers to watch in play
+
+| what | value | where |
+| --- | --- | --- |
+| game hour | 20 s | `SEC_PER_HOUR` |
+| deadfall | 22 person-hours, cut skill +18%/level | `world.js`, `chopRate` |
+| drain | 0.0045/h x depth (1 + 0.6/area) x night | `DRAIN` |
+| night take chance | 0.10 + 0.07/area + 0.25 cold or rough + 0.08/fake held + 0.25 x lost mind | `night.js` |
+| pylon shield | 36 h | `PYLON_HOURS` |
+| ask | 0.5 h | `ASK_HOURS` |
+
+None of these has met a human player. Brain T11: automated 3D verification
+checks logic, not whether it reads or whether it is fun.
 
 ## House rules (from Seven, still binding)
 
