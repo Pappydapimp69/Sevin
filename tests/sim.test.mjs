@@ -407,3 +407,13 @@ t("the recruit screen says what every skill does", () => {
   const src = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
   for (const k of ["cut", "carry", "fire"]) assert.ok(new RegExp(`\\b${k}: "[^"]{20,}"`).test(src.slice(src.indexOf("SKILL_WHAT"))), k + " is not explained");
 });
+
+t("every task says which skill it leans on, and it is the one the sim uses", () => {
+  for (const t of S.TASKS) assert.ok(t in S.TASK_SKILL, t + " has no skill named");
+  assert.equal(S.TASK_SKILL.chop, "cut");
+  assert.equal(S.TASK_SKILL.gather, "carry");
+  assert.equal(S.TASK_SKILL.pitch, "carry");
+  assert.equal(S.TASK_SKILL.camp, "fire");
+  const ui = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
+  assert.ok(ui.includes("TASK_SKILL[t]") && ui.includes('classList.toggle("used"'), "the plan screen does not show it");
+});

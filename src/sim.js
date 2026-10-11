@@ -23,6 +23,9 @@ export const REACH = 3;              // metres: hands' reach
 export const HEAR = 50;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
 export const TASKS = ["follow", "chop", "gather", "camp", "pitch"];
+// Which skill a task leans on (the one that makes it go faster or further).
+// "with you" lends a hand to whatever YOU are doing, so it has none of its own.
+export const TASK_SKILL = { chop: "cut", gather: "carry", pitch: "carry", camp: "fire", follow: null };
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp" };
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.

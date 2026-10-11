@@ -46,3 +46,8 @@ t("prompts show the device's own glyph", () => {
   assert.equal(glyph("act", "gamepad"), "(A)");
   assert.equal(glyph("act", "touch"), "Use");
 });
+
+t("no key is wrapped in brackets twice, like ((LB))", () => {
+  const ui = readFileSync(new URL("../src/ui.js", import.meta.url), "utf8");
+  assert.ok(!/\(\$\{glyph\(/.test(ui) && !/\[\$\{glyph\(/.test(ui), "a glyph is put inside brackets it already has");
+});

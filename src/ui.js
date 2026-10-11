@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, TASKS, TASK_LABEL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
@@ -162,12 +162,16 @@ export function createUI(api) {
   function dawnPlan(sim, onDone) {
     const choice = {};
     const allowed = tasksNow(sim);
+    const taskText = (t) => TASK_LABEL[t] + (TASK_SKILL[t] ? `  ·  ${SKILL_LABEL[TASK_SKILL[t]]}` : "  ·  helps you");
     const rows = party(sim).map((m) => {
       choice[m.id] = allowed.includes(m.task) ? m.task : "follow";      // yesterday's work, unless you change it
-      const sel = h("select", { "data-id": m.id, on: { change: (e) => (choice[m.id] = e.target.value) } },
-        ...allowed.map((t) => h("option", { value: t, selected: choice[m.id] === t }, TASK_LABEL[t])));
-      return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel),
-        h("td", { class: "skills" }, SKILLS.map((k) => h("span", { class: "sk", title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])))));
+      const skillCells = SKILLS.map((k) => h("span", { class: "sk", "data-k": k, title: SKILL_LABEL[k] }, k + " " + dots(m.skills[k])));
+      // the skill this task uses lights up in the row
+      const mark = () => skillCells.forEach((el) => el.classList.toggle("used", el.dataset.k === TASK_SKILL[choice[m.id]]));
+      const sel = h("select", { "data-id": m.id, on: { change: (e) => { choice[m.id] = e.target.value; mark(); } } },
+        ...allowed.map((t) => h("option", { value: t, selected: choice[m.id] === t }, taskText(t))));
+      mark();
+      return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel), h("td", { class: "skills" }, skillCells));
     });
     const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[sim.call.bearing]}.`) : null;
     show("plan",
@@ -177,11 +181,11 @@ export function createUI(api) {
         : sim.pitch
           ? `Camp is still going up by the ${sim.pitch.place}. Set the day's work.`
           : `There is no camp yet. Somebody has to make one before dark, or everyone sleeps in the open. ` +
-            `Whoever you set to making camp takes the kit to the ${pitchSite(sim)?.kind || "nearest clearing"} and puts it up. Or put it up yourself (${glyph("camp", api.scheme())}), wherever you stand.`)),
+            `Whoever you set to making camp takes the kit to the ${pitchSite(sim)?.kind || "nearest clearing"} and puts it up. Or put it up yourself with ${KEYS[api.scheme()].camp}, wherever you stand.`)),
       call,
       h("table", { class: "grid" }, rows),
-      h("p", { class: "small" }, "On the deadfall: they cut until dusk. Gathering: they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
-        (sim.camp.up ? "Keeping camp: they stay, bring in deadwood and keep the fire. " : "Making camp: most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand."),
+      h("p", { class: "small" }, "On the deadfall (Cutting): they cut until their shift ends. Gathering wood (Carrying): they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
+        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Carrying): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing."),
       h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
     );
   }

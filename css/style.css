@@ -60,6 +60,7 @@ button.day { padding: 4px 12px; }
 .grid .name { color: var(--accent); white-space: nowrap; }
 .grid .val { display: inline-block; width: 1.6em; text-align: center; }
 .grid .skills .sk { margin-right: 10px; }
+.grid .skills .sk.used { color: var(--accent); font-weight: bold; }
 .grid .skills { font-size: .8em; color: var(--dim); white-space: nowrap; }
 select { font: inherit; background: #1d241c; color: var(--ink); border: 1px solid var(--line); border-radius: 4px; padding: 4px; }
 .account { margin-top: 12px; min-height: 120px; }
