@@ -16,6 +16,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0b; col
 #carry { top: 12px; right: 16px; text-align: right; color: var(--dim); }
 #cross { left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: rgba(255,255,255,.6); }
 #prompt { left: 0; right: 0; top: calc(50% + 28px); text-align: center; font-size: 1.1em; color: var(--accent); }
+#sleepHint { left: 0; right: 0; bottom: 64px; text-align: center; font-size: 1.15em; color: var(--warn); letter-spacing: .04em; animation: hint 2.4s ease-in-out infinite; }
+@keyframes hint { 50% { opacity: .55; } }
 #work { left: 0; right: 0; top: calc(50% + 58px); text-align: center; color: var(--warn); }
 #log { left: 16px; bottom: 16px; max-width: min(560px, 80vw); display: flex; flex-direction: column; gap: 4px; }
 .msg { transition: opacity 2s; }

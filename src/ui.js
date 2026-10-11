@@ -346,6 +346,11 @@ export function createUI(api) {
       if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
     }
     $("prompt").textContent = lines.join("   ");
+    // after dusk, at the camp: the day can end here
+    const hint = $("sleepHint");
+    const endDay = !sim.tutorial && !sim.over && sim.camp.up && isNight(sim.time) && atCamp(sim, sim.player) && !sim.work && !sim.plan.pending;
+    hint.hidden = !endDay;
+    if (endDay) hint.textContent = sch === "touch" ? `Tap ${KEYS.touch.sleep} to end the day` : `Press ${KEYS[sch].sleep} to end the day`;
     $("work").textContent = sim.work ? workText(sim.work, sim) : "";
     $("work").hidden = !sim.work;
 
