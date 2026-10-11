@@ -2,7 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
-import { hourOf, homeCount, PYLON_HOURS, party, isNight } from "./sim.js";
+import { hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
@@ -202,7 +202,12 @@ export function createRenderer(canvas) {
     head.position.y = 1.7;
     const pack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.25), new THREE.MeshLambertMaterial({ color: 0x3d3b30 }));
     pack.position.set(0, 1.1, 0.3);
-    g.add(body, head, pack);
+    const upper = new THREE.Group();             // bends at the hips when working
+    upper.position.y = 0.3;
+    body.position.y -= 0.3; head.position.y -= 0.3; pack.position.y -= 0.3;
+    upper.add(body, head, pack);
+    g.add(upper);
+    g.userData.body = upper;
     const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2, 8), HIDDEN);
     hit.position.y = 1; hit.userData.pick = pick; hit.userData.owner = g;
     g.add(hit); built.picks.push(hit);
@@ -277,11 +282,24 @@ export function createRenderer(canvas) {
 
     // camp
     const C = B.camp, camp = sim.camp;
-    // a camp going up shows where it is, growing as the work goes
+    // A camp going up, or coming down, is drawn as far along as the work is:
+    // the kit on the ground, the first tent rising, the second, then the
+    // stones of the fire ring one by one. Taking it down runs it backwards.
     const pitch = sim.pitch;
+    const striking = sim.work?.kind === "strike" ? sim.work : null;
     C.g.visible = camp.up || !!pitch;
-    const grow = camp.up ? 1 : pitch ? Math.max(0.15, 1 - pitch.left / 2) : 1;
-    for (const tnt of C.tents) tnt.scale.set(grow, grow, grow);
+    const prog = striking ? Math.max(0, striking.left / STRIKE_HOURS) : camp.up ? 1 : pitch ? Math.max(0, 1 - pitch.left / PITCH_HOURS) : 1;
+    const stage = (a, b) => Math.max(0, Math.min(1, (prog - a) / (b - a)));
+    const t1 = stage(0.08, 0.5), t2 = stage(0.35, 0.8);
+    C.tents.forEach((tnt, i) => {
+      const k = i === 0 ? t1 : t2;
+      tnt.visible = k > 0.01;
+      tnt.scale.set(0.6 + 0.4 * k, Math.max(0.02, k), 0.6 + 0.4 * k);
+      tnt.position.y = 1.0 * Math.max(0.02, k);
+    });
+    C.stones.forEach((st, i) => (st.visible = prog >= 0.72 + i * 0.035));
+    C.kit.visible = !camp.up || striking ? prog < 0.6 : false;
+    C.kit.scale.setScalar(Math.max(0.3, 1 - prog));
     C.g.position.set(camp.up ? camp.x : pitch ? pitch.x : camp.x, 0, -(camp.up ? camp.y : pitch ? pitch.y : camp.y));
     const fuel = camp.lit ? Math.min(1, camp.fire / 6) : 0;
     C.flame.visible = camp.lit;
@@ -301,7 +319,22 @@ export function createRenderer(canvas) {
       if (mv > 0.001) f.rotation.y = Math.atan2(-(m.x - prev.x), -(m.y - prev.y));
       f.userData.prev = { x: m.x, y: m.y };
       f.userData.bob = (f.userData.bob || 0) + mv * 5;
-      f.position.set(m.x, Math.abs(Math.sin(f.userData.bob)) * 0.06, -m.y);
+      // working: bent to it, a steady rhythm; sitting at the fire: lower
+      const working = m.state === "work" || (m.workT != null && sim.time - m.workT < 0.03);
+      const now = performance.now() / 1000;
+      if (working) {
+        const swing = Math.sin(now * 7 + m.slot);
+        f.userData.body.rotation.x = 0.35 + swing * 0.2;
+        f.position.set(m.x, Math.max(0, swing) * 0.05, -m.y);
+        if (sim.pitch && mv < 0.001) f.rotation.y = Math.atan2(-(sim.pitch.x - m.x), -(sim.pitch.y - m.y));
+      } else if (m.state === "sit") {
+        f.userData.body.rotation.x = 0.1;
+        f.position.set(m.x, -0.45, -m.y);
+        if (sim.camp.up) f.rotation.y = Math.atan2(-(sim.camp.x - m.x), -(sim.camp.y - m.y));
+      } else {
+        f.userData.body.rotation.x = 0;
+        f.position.set(m.x, Math.abs(Math.sin(f.userData.bob)) * 0.06, -m.y);
+      }
       seen.add(m.id);
     }
     for (const [id, f] of B.members) if (!seen.has(id)) f.visible = false;
@@ -384,8 +417,10 @@ function campMesh() {
   tent.position.set(-2.4, 1.1, -1.6); tent.rotation.y = Math.PI / 4;
   const tent2 = tent.clone(); tent2.position.set(2.2, 1.1, -2);
   const ringMat = new THREE.MeshLambertMaterial({ color: 0x55575a });
+  const stones = [];
   for (let k = 0; k < 8; k++) {
     const s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22), ringMat);
+    stones.push(s);
     s.position.set(Math.cos(k * 0.785) * 0.8, 0.12, Math.sin(k * 0.785) * 0.8);
     g.add(s);
   }
@@ -401,8 +436,15 @@ function campMesh() {
     l.position.set(1.8 + (k % 4) * 0.02, 0.1 + Math.floor(k / 4) * 0.2, 1.2 + (k % 4) * 0.22);
     g.add(l); pile.push(l);
   }
-  g.add(tent, tent2, flame, light);
-  return { g, flame, light, pile, tents: [tent, tent2] };
+  // the kit, bundled on the ground until it becomes a camp
+  const kit = new THREE.Group();
+  const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 1.4, 10), new THREE.MeshLambertMaterial({ color: 0x8a7f5a }));
+  roll.rotation.z = Math.PI / 2; roll.position.y = 0.35;
+  const poles = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.25), new THREE.MeshLambertMaterial({ color: 0x6b4c30 }));
+  poles.position.set(0, 0.1, 0.5);
+  kit.add(roll, poles); kit.position.set(-0.5, 0, -2.6);
+  g.add(tent, tent2, flame, light, kit);
+  return { g, flame, light, pile, tents: [tent, tent2], stones, kit };
 }
 
 function landmark(c, world) {

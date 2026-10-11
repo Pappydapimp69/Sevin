@@ -103,7 +103,7 @@ function lookTarget() {
 
 const campVerbs = {
   strike: () => { if (S.strikeCamp(sim)) S.say(sim, "You start taking the camp down. Stand still; whoever is near helps."); },
-  make: () => { if (S.makeCamp(sim)) S.say(sim, "You start making camp. Stand still; whoever is near helps."); },
+  make: () => { if (S.makeCamp(sim)) S.say(sim, "You start making camp. Alone it is most of a morning; whoever is near helps. Stand still."); },
   canStrike: () => S.canStrikeCamp(sim),
   canMake: () => S.canMakeCamp(sim),
   canSleep: () => canSleep(sim),

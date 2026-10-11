@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, TASKS, TASK_LABEL, tasksNow, pitchSite, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, TASKS, TASK_LABEL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
@@ -174,7 +174,7 @@ export function createUI(api) {
       call,
       h("table", { class: "grid" }, rows),
       h("p", { class: "small" }, "On the deadfall: they cut until dusk. Gathering: they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
-        (sim.camp.up ? "At camp: they stay by the fire. " : "Making camp: more hands, sooner up. ") + "With you: they follow and lend a hand."),
+        (sim.camp.up ? "Keeping camp: they stay, bring in deadwood and keep the fire. " : "Making camp: most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand."),
       h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
     );
   }
@@ -233,10 +233,11 @@ export function createUI(api) {
   function campMenu(sim, v) {
     const items = [];
     if (sim.camp.up) {
-      items.push(btn("Take the camp down (an hour)", () => { close(); v.strike(); }, v.canStrike() ? "" : "disabled"));
+      items.push(btn("Take the camp down", () => { close(); v.strike(); }, v.canStrike() ? "" : "disabled"));
       if (atCamp(sim, sim.player) && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
     } else {
-      items.push(btn("Make camp here (two hours)", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
+      const here = sim.pitch && Math.hypot(sim.pitch.x - sim.player.x, sim.pitch.y - sim.player.y) < 5;
+      items.push(btn(here ? "Keep making camp" : "Make camp here", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
       if (!v.canMake()) items.push(h("p", { class: "small" }, "A camp needs open ground all round."));
     }
     if (v.canWalkOut()) items.push(btn("Walk out of the woods", () => { close(); v.walkOut(); }, "primary"));
@@ -342,7 +343,7 @@ export function createUI(api) {
       if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
     }
     $("prompt").textContent = lines.join("   ");
-    $("work").textContent = sim.work ? workText(sim.work) : "";
+    $("work").textContent = sim.work ? workText(sim.work, sim) : "";
     $("work").hidden = !sim.work;
 
     // messages
@@ -390,11 +391,12 @@ export function compass(yaw) {
   return out.join("   ");
 }
 
-function workText(w) {
+const bar = (f, n = 12) => { const k = Math.round(Math.max(0, Math.min(1, f)) * n); return "▮".repeat(k) + "▯".repeat(n - k); };
+function workText(w, sim) {
   switch (w.kind) {
     case "chop": return "Chopping. Time runs fast. Move to stop.";
-    case "make": return "Making camp. Move to stop.";
-    case "strike": return "Taking the camp down. Move to stop.";
+    case "make": return `Making camp  ${bar(sim.pitch ? 1 - sim.pitch.left / PITCH_HOURS : 1)}  (move to stop)`;
+    case "strike": return `Taking the camp down  ${bar(1 - w.left / STRIKE_HOURS)}  (move to stop)`;
     case "ask": return "Talking.";
     case "act": {
       const n = 12, f = Math.round(Math.min(1, w.t / w.need) * n);

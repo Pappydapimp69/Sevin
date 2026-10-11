@@ -45,6 +45,10 @@ different game. SEVIN has one game, so each module has one job.
   watch or sleep, and lights the fire. A task is a shift; a member comes home
   when it ends. In the field you can only whistle: whoever hears it and is
   not on a shift whistles back and comes, after a moment.
+- **Evenings.** From dusk everyone not with you comes in to the fire, lights it
+  if there is wood, keeps it going and waits up for you. Awake after dark wears
+  like night. The night is planned when you get back.
+- **Keeping camp** (a task): stay at camp, bring in deadwood, keep the fire.
 - **Camp.** One at a time. Take down 1h, make 2h, helpers speed both. The
   woodpile belongs to the camp. The fire belongs to the camp, burns wood, and
   only shields the campsite at night.
@@ -85,8 +89,10 @@ different game. SEVIN has one game, so each module has one job.
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
 | deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
-| hands (pick up, light, feed, pylon, rescue) | 3 s, moving lets go | `ACT_SECONDS` |
-| first camp | none: you arrive with the kit; making camp 2 person-hours | `PITCH_HOURS` |
+| hands | stick 0.35 s, feed 1.2 s, light / pylon / rescue 3 s; moving lets go | `ACT_TIME` |
+| making camp | 5 person-hours (about 1 h with everyone), at the world's pace, drawn in stages | `PITCH_HOURS` |
+| taking camp down | 2 person-hours | `STRIKE_HOURS` |
+| fast-forward | chopping only (8x) | `WORK_SPEED` |
 | drain | 0.0045/h x depth (1 + 0.6/area) x night | `DRAIN` |
 | night take chance | 0.10 + 0.07/area + 0.25 cold or rough + 0.08/fake held + 0.25 x lost mind | `night.js` |
 | pylon shield | 36 h | `PYLON_HOURS` |
