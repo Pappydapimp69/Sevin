@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, roster, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
 import { accountFor, askableDays, shownWood, shownFire } from "./percept.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
@@ -162,7 +162,7 @@ export function createUI(api) {
       mark();
       return h("tr", {}, h("td", { class: "name" }, m.name), h("td", {}, sel), h("td", { class: "skills" }, h("div", { class: "skillrow" }, skillCells)));
     });
-    const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[sim.call.bearing]}.`) : null;
+    const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[seenBearing(sim, sim.call.bearing)]}.`) : null;
     show("plan",
       h("h2", {}, `Dawn, day ${today(sim)}`),
       h("p", {}, `Weather: ${sim.weather[today(sim)]}. ` + (sim.camp.up
@@ -335,7 +335,7 @@ export function createUI(api) {
     if (sim.player.carryingKit) bits.push("the camp kit");
     if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(shownFire(sim))}`);
     $("carry").textContent = bits.join(" · ");
-    $("compass").textContent = compass(sim.player.yaw);
+    $("compass").textContent = compass(sim.player.yaw + (compassOffset(sim) * Math.PI) / 4);
 
     // the prompt: the action in front of you, and who you are looking at
     const sch = api.scheme();

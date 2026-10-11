@@ -312,7 +312,7 @@ function frame(now) {
       audio.event(e, sim);
       if (e.kind === "over") finish(sim.over);
       // a whistle back is heard, not seen: say where it came from
-      if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[bearingOf(sim.player, e)]}.`);
+      if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[S.seenBearing(sim, bearingOf(sim.player, e))]}.`);
     }
     if (!scene) sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;

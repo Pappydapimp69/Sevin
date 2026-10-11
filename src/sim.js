@@ -158,6 +158,24 @@ export const clock = (t) => {
 };
 export const today = (sim) => dayOf(sim.time);
 
+/**
+ * The compass lies from the third day. The trail still leads north, but the
+ * needle reads turned by 1 to 7 eighths of a circle, a different amount each
+ * day, and everything the game puts in words about direction follows it. Your
+ * ears do not (a whistle is heard from where it really is). Nothing says so.
+ */
+export function compassOffset(sim) {
+  const d = dayOf(sim.time);
+  let off = 0;
+  for (let k = 3; k <= d; k++) {            // each day turns it on from the day before, never back to true
+    const step = 1 + Math.floor(stream(hash("compass", sim.seed, k))() * 6);   // 1..6
+    off = (off + step) % 8 || (off + step + 1) % 8;
+  }
+  return d < 3 ? 0 : off;
+}
+/** A true bearing (0-7, north first) as the compass would have it. */
+export const seenBearing = (sim, b) => (b + compassOffset(sim)) % 8;
+
 export function say(sim, text, kind = "info") {
   sim.msgs.push({ t: sim.time, text, kind });
 }

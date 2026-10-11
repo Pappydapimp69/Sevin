@@ -5,7 +5,7 @@
 // calls. Draw unconditionally, use conditionally.
 
 import {
-  burnRate, burnHours, practice, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
+  seenBearing, burnRate, burnHours, practice, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
   areaAt, shielded, canStand, reachable, note, say, DRAIN,
 } from "./sim.js";
 import { WEATHERS } from "./chronicle.js";
@@ -229,7 +229,7 @@ export function sleep(sim) {
 
   const lines = [`Day ${nd}.`];
   if (!fireHeld && camp.up && camp.lit === false) lines.push("The fire was out before light.");
-  if (sim.call) lines.push(`At first light, a voice, a long way off. From the ${BEARINGS[sim.call.bearing]}.`);
+  if (sim.call) lines.push(`At first light, a voice, a long way off. From the ${BEARINGS[seenBearing(sim, sim.call.bearing)]}.`);
   say(sim, lines.join(" "), sim.call ? "warn" : "info");
   sim.events.push({ kind: "dawn", day: nd, fireHeld, rough });
   return { hours, fireHeld, rough, taken: taken ? taken.id : null };
