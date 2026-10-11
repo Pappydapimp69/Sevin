@@ -1,121 +1,193 @@
-import { SIZE, TARGET, START_TIME, newGame, play, sumOf, adjacent, isValid, findMove, tick, dailySeed } from './game.js';
+// main.js — the loop and the wiring. Holds no rules of its own.
 
-const $ = (id) => document.getElementById(id);
-const board = $('board');
-const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
-const KEY = 'sevin:best';
+import * as S from "./sim.js";
+import { sleep, canSleep } from "./night.js";
+import { createRenderer } from "./render.js";
+import { createInput } from "./input.js";
+import { createUI } from "./ui.js";
+import { createTutorial, tutorialStep } from "./tutorial.js";
+import { makeRoster } from "./names.js";
+import { stream, hash } from "./rng.js";
+import { chatter } from "./percept.js";
+import * as Save from "./save.js";
 
-let g = null, path = [], dragging = false, last = 0, idle = 0;
-const cells = [];
+const canvas = document.getElementById("view");
+const renderer = createRenderer(canvas);
+let sim = null;
+let paused = true;
+let lastSave = 0;
+let chatClock = 0;
 
-const load = () => { try { return +localStorage.getItem(KEY) || 0; } catch { return 0; } };
-const save = (v) => { try { localStorage.setItem(KEY, v); } catch {} };
-$('best').textContent = load();
+const input = createInput(canvas, (v) => verb(v));
+const ui = createUI({
+  paused: (on) => { paused = on; input.setEnabled(!on); },
+  continueRun: () => start(Save.loadRun()),
+  newRun: () => recruit(freshSeed()),
+  tutorial: () => start(createTutorial()),
+  toTitle: () => title(),
+  finishTutorial: () => {
+    const st = Save.settings(); st.tutorialDone = true; Save.saveSettings(st);
+    ui.tutorialEnd({ newRun: () => recruit(freshSeed()), toTitle: title });
+  },
+});
 
-for (let y = 0; y < SIZE; y++)
-  for (let x = 0; x < SIZE; x++) {
-    const d = document.createElement('div');
-    d.className = 'die';
-    d.dataset.x = x; d.dataset.y = y;
-    for (let i = 0; i < 9; i++) d.appendChild(document.createElement('i'));
-    board.appendChild(d);
-    cells.push(d);
+// The seed is chosen once, at the start of a run, and everything after is a
+// function of it. (Choosing it from the clock is fine; DERIVING the world from
+// device state is what is forbidden.)
+const freshSeed = () => (Math.floor(Math.random() * 2 ** 31) ^ Date.now()) >>> 0;
+
+function title() {
+  sim = null;
+  ui.hideHud();
+  ui.title({ canContinue: Save.hasRun(), record: Save.runs() });
+}
+
+function recruit(seed) {
+  const names = makeRoster(stream(hash("names", seed)), 5);
+  ui.recruit(names, (team) => {
+    const run = S.createRun({ seed, party: team });
+    S.say(run, "You walk in at the south end of the trail. Camp is in the clearing ahead. North is the way through.");
+    S.say(run, "Somewhere north, a deadfall lies across the trail.");
+    start(run);
+    Save.saveRun(run);
+  }, () => recruit(freshSeed()));
+}
+
+function start(run) {
+  if (!run) return title();
+  sim = run;
+  ui.resetLog();
+  input.state.yaw = sim.player.yaw;
+  input.state.pitch = sim.player.pitch;
+  ui.close();
+  if (!sim.tutorial && sim.plan.pending) openPending();
+}
+
+// ---------------------------------------------------------------- verbs
+
+function lookTarget() {
+  if (!sim) return null;
+  const p = sim.player;
+  const fx = Math.sin(p.yaw), fy = Math.cos(p.yaw);
+  let best = null, bd = Infinity;
+  for (const m of S.party(sim)) {
+    const dx = m.x - p.x, dy = m.y - p.y, d = Math.hypot(dx, dy);
+    if (d > 5 || d < 0.01) continue;
+    const ang = Math.acos(Math.max(-1, Math.min(1, (dx * fx + dy * fy) / d)));
+    if (ang < 0.45 && d < bd) { bd = d; best = m; }
   }
+  return best;
+}
 
-const cellAt = (p) => cells[p.y * SIZE + p.x];
+const campVerbs = {
+  strike: () => { if (S.strikeCamp(sim)) S.say(sim, "You start taking the camp down. Stand still; whoever is near helps."); },
+  make: () => { if (S.makeCamp(sim)) S.say(sim, "You start making camp. Stand still; whoever is near helps."); },
+  canStrike: () => S.canStrikeCamp(sim),
+  canMake: () => S.canMakeCamp(sim),
+  canSleep: () => canSleep(sim),
+  sleep: () => doSleep(),
+  plan: () => { sim.plan.pending = "dawn"; openPending(); },
+  canWalkOut: () => !!sim.world.farSide && Math.hypot(sim.world.farSide.x - sim.player.x, sim.world.farSide.y - sim.player.y) < sim.world.farSide.r + 4,
+  walkOut: () => ui.confirm("Walk out now? Whoever has not gone home stays here.", () => finish(S.walkOut(sim))),
+};
 
-function draw(dropped = new Set()) {
-  for (let y = 0; y < SIZE; y++)
-    for (let x = 0; x < SIZE; x++) {
-      const d = cells[y * SIZE + x], on = PIPS[g.grid[y][x]];
-      [...d.children].forEach((pip, i) => pip.classList.toggle('on', on.includes(i)));
-      d.classList.remove('sel', 'ok', 'over', 'hint', 'drop');
-      if (dropped.has(x)) { void d.offsetWidth; d.classList.add('drop'); }
+function verb(v) {
+  if (v === "escape") { if (ui.open && ui.open !== "title" && ui.open !== "recruit" && ui.open !== "end") ui.close(); return; }
+  if (!sim || paused) return;
+  switch (v) {
+    case "act": {
+      const r = S.act(sim);
+      if (r?.kind === "home" && sim.home.lit >= S.homeCount(sim)) S.say(sim, "That was the last pylon here. Press C to walk out.");
+      break;
     }
-  const s = path.length ? sumOf(g, path) : 0;
-  const cls = s === TARGET && path.length > 1 ? 'ok' : s > TARGET ? 'over' : '';
-  path.forEach((p) => cellAt(p).classList.add('sel', ...(cls ? [cls] : [])));
-  $('sum').className = cls;
-  $('sum').textContent = path.length ? path.map((p) => g.grid[p.y][p.x]).join(' + ') + ' = ' + s : ' ';
-  $('score').textContent = g.score;
-  hud();
+    case "ask": {
+      const t = lookTarget();
+      if (!t) { S.say(sim, "Look at someone to ask them."); break; }
+      ui.ask(sim, t, (id, day) => S.askMember(sim, id, day));
+      break;
+    }
+    case "call": {
+      const heard = S.callOut(sim);
+      S.say(sim, heard.length ? "You call out." : "You call out. Nothing comes back.");
+      break;
+    }
+    case "camp": if (!sim.tutorial || sim.tut.step >= 8) ui.campMenu(sim, campVerbs); break;
+    case "sleep": doSleep(); break;
+    case "pause": ui.pause({ quit: () => { if (sim && !sim.tutorial) Save.saveRun(sim); title(); } }); break;
+    case "help": ui.help(); break;
+  }
 }
 
-function hud() {
-  $('time').textContent = Math.ceil(g.time);
-  $('fill').style.width = Math.min(100, (g.time / START_TIME) * 100) + '%';
-  $('fill').classList.toggle('low', g.time < 10);
+function doSleep() {
+  if (!canSleep(sim)) { S.say(sim, sim.tutorial ? "Not here." : "Not yet. Sleep comes at dusk."); return; }
+  const go = () => {
+    sleep(sim);
+    Save.saveRun(sim);
+    if (sim.plan.pending) openPending();
+  };
+  if (sim.camp.up && S.atCamp(sim, sim.player) && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
+  if (!S.atCamp(sim, sim.player)) ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", go);
+  else go();
 }
 
-function pointCell(e) {
-  const el = document.elementFromPoint(e.clientX, e.clientY)?.closest('.die');
-  return el ? { x: +el.dataset.x, y: +el.dataset.y } : null;
+function openPending(sleepAfter = false) {
+  if (sim.plan.pending === "dawn") {
+    ui.dawnPlan(sim, (choice) => { S.setDawnPlan(sim, choice); sim.plan.dawnDay = S.today(sim); Save.saveRun(sim); });
+  } else if (sim.plan.pending === "dusk") {
+    ui.duskPlan(sim, (watch, sleepNow) => {
+      S.setDuskPlan(sim, watch);
+      if (sleepNow || sleepAfter) setTimeout(doSleep, 0);
+    }, () => S.tendFire(sim));
+  }
 }
 
-function extend(p) {
-  if (!p) return;
-  const i = path.findIndex((q) => q.x === p.x && q.y === p.y);
-  if (i >= 0 && i === path.length - 2) path.pop(); // step back
-  else if (i === -1 && (!path.length || adjacent(path[path.length - 1], p))) path.push(p);
-  else return;
-  draw();
+function finish(over) {
+  if (!over) return;
+  Save.recordRun(over);
+  Save.clearRun();
+  ui.end(over, { toTitle: title });
 }
 
-board.addEventListener('pointerdown', (e) => {
-  if (!g || g.over) return;
-  dragging = true; idle = 0; path = [];
-  extend(pointCell(e));
-});
-window.addEventListener('pointermove', (e) => { if (dragging) extend(pointCell(e)); });
-window.addEventListener('pointerup', () => {
-  if (!dragging) return;
-  dragging = false;
-  if (isValid(g, path)) {
-    const cols = new Set(path.map((p) => p.x));
-    const pts = play(g, path), at = cellAt(path[path.length - 1]);
-    popup('+' + pts + (path.length === TARGET ? ' JACKPOT' : ''), at);
-    path = [];
-    draw(cols);
-  } else { path = []; draw(); }
-});
+// ---------------------------------------------------------------- loop
 
-function popup(text, at) {
-  const el = document.createElement('div');
-  el.className = 'pop'; el.textContent = text;
-  const r = at.getBoundingClientRect(), m = document.querySelector('main').getBoundingClientRect();
-  el.style.left = r.left - m.left + 'px'; el.style.top = r.top - m.top + 'px';
-  document.querySelector('main').appendChild(el);
-  setTimeout(() => el.remove(), 900);
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000);
+  last = now;
+  if (sim) {
+    if (!paused) {
+      const inp = input.read(dt);
+      S.tick(sim, dt, inp);
+      if (sim.wantSleep) { sim.wantSleep = false; sleep(sim); Save.saveRun(sim); }
+      if (sim.plan.pending && !ui.open) openPending();
+      for (const e of sim.events) if (e.kind === "over") finish(sim.over);
+      sim.events.length = 0;
+      // someone says something now and then
+      chatClock += dt;
+      if (chatClock > 25 && !sim.tutorial) {
+        chatClock = 0;
+        const near = S.party(sim).filter((m) => Math.hypot(m.x - sim.player.x, m.y - sim.player.y) < 10);
+        if (near.length) {
+          const m = near[Math.floor((sim.time * 7) % near.length)];
+          S.say(sim, `${m.name}: “${chatter(sim, m, Math.floor(sim.time * 3))}”`, "talk");
+        }
+      }
+      if (!sim.tutorial && now - lastSave > 15000) { lastSave = now; Save.saveRun(sim); }
+    }
+    const step = sim.tutorial ? tutorialStep(sim) : null;
+    ui.hud(sim, { action: paused ? null : S.resolveAction(sim), target: paused ? null : lookTarget(), step });
+    renderer.draw(sim, dt);
+  }
+  requestAnimationFrame(frame);
 }
+requestAnimationFrame(frame);
 
-function start(seed, label) {
-  g = newGame(seed); g.label = label; path = [];
-  $('overlay').classList.add('hidden');
-  draw(new Set([0, 1, 2, 3, 4, 5, 6]));
-  last = performance.now();
-  requestAnimationFrame(loop);
-}
+document.addEventListener("visibilitychange", () => { if (document.hidden && sim && !sim.tutorial) Save.saveRun(sim); });
 
-function loop(now) {
-  const dt = (now - last) / 1000; last = now;
-  tick(g, dt);
-  idle += dt;
-  if (idle > 8) { idle = 0; (findMove(g) || []).forEach((p) => cellAt(p).classList.add('hint')); }
-  hud();
-  if (g.over) return end();
-  requestAnimationFrame(loop);
-}
+// touch buttons
+for (const b of document.querySelectorAll("#touchbar button")) b.addEventListener("click", (e) => { e.preventDefault(); verb(b.dataset.verb); });
 
-function end() {
-  dragging = false; path = []; draw();
-  const best = load(), rec = g.score > best;
-  if (rec) save(g.score);
-  $('best').textContent = Math.max(best, g.score);
-  $('title').textContent = rec ? 'NEW BEST' : 'TIME';
-  $('msg').innerHTML = `${g.label} &middot; <b>${g.score}</b> points<br>${g.chains} chains, longest ${g.best}`;
-  $('play').textContent = 'Again';
-  $('overlay').classList.remove('hidden');
-}
+title();
 
-$('play').onclick = () => start(Date.now(), 'Endless');
-$('daily').onclick = () => start(dailySeed(), 'Daily ' + new Date().toISOString().slice(0, 10));
+// for tests and the curious
+window.__sevin = { get sim() { return sim; }, S, verb, input, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
