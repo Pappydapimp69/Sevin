@@ -72,10 +72,17 @@ export function chatter(sim, m, tick) {
  */
 export function verses(sim, k = 0) {
   const d = today(sim);
-  return party(sim).filter((m) => sim.camp.up && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14).map((m) => {
-    const lines = accountFor(sim, m.id, d).lines.filter((l) => l && l.length > 3);
+  // each sings a different line of their own account, their own doings first
+  const used = new Set();
+  const FILL = ["the trail went on north", "the wood was wet and the fire took it anyway", "nobody fell behind today", "the trees were closer in the evening"];
+  return party(sim).filter((m) => sim.camp.up && !m.sleeping && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14).map((m) => {
+    const all = accountFor(sim, m.id, d).lines.filter((l) => l && l.length > 3 && !used.has(l));
+    const own = all.filter((l) => l.includes(m.name));
+    const pool = own.length ? own : all.length ? all : FILL.filter((l) => !used.has(l));
     const r = stream(hash("verse", sim.seed, m.id, d, k))();
-    return { id: m.id, name: m.name, voice: m.voice, line: lines.length ? lines[Math.floor(r * lines.length)] : "the trail went on north" };
+    const line = pool.length ? pool[Math.floor(r * pool.length)] : FILL[0];
+    used.add(line);
+    return { id: m.id, name: m.name, voice: m.voice, line };
   });
 }
 

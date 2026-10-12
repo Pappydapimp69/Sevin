@@ -123,13 +123,15 @@ const campVerbs = {
   plan: () => { sim.plan.pending = "dawn"; openPending(); },
   canWalkOut: () => !!sim.world.farSide && Math.hypot(sim.world.farSide.x - sim.player.x, sim.world.farSide.y - sim.player.y) < sim.world.farSide.r + 4,
   evening: () => !sim.tutorial && S.atCamp(sim, sim.player) && S.hourOf(sim.time) >= S.DUSK && S.hourOf(sim.time) < S.EVENING_END && S.party(sim).length > 0,
-  sing: () => {
+  sing: (after) => {
     sim.songs = (sim.songs || 0) + 1;
     sim.sangDay = S.today(sim);
     const vs = verses(sim, sim.songs);
-    vs.forEach((v, i) => setTimeout(() => { if (sim) { S.say(sim, `${v.name} sings: “${v.line}”`, "talk"); audio.event({ kind: "sing", voice: v.voice }, sim); } }, i * 2600));
-    S.pass(sim, 0.5);
-    return vs.length * 2600;
+    if (!vs.length) { after?.(); return; }
+    ui.song(vs, {
+      sing: (v) => { S.say(sim, `${v.name} sings: “${v.line}”`, "talk"); audio.event({ kind: "sing", voice: v.voice }, sim); },
+      done: () => { S.pass(sim, 0.5); after?.(); },
+    });
   },
   learn: (after) => {
     const people = S.party(sim).filter((m) => S.atCamp(sim, m) && !m.sleeping);
@@ -265,10 +267,8 @@ function startSong(then) {
   const t0 = 1200 + talk.length * 2200;
   setTimeout(() => {
     if (!sim) return;
-    S.say(sim, "Then somebody starts the song.", "talk");
-    const wait = campVerbs.sing();
-    // then each one whistles their call, and you play it back (skip it with {back})
-    setTimeout(() => { if (!sim) return; campVerbs.learn(() => { sim.campEvent = false; if (!scene) then(); }); }, wait + 1500);
+    // the song, then each one whistles their call and you play it back
+    campVerbs.sing(() => { if (!sim) return; campVerbs.learn(() => { sim.campEvent = false; if (!scene) then(); }); });
   }, t0);
 }
 

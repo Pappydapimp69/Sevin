@@ -162,3 +162,5 @@ button[aria-disabled="true"] { opacity: .4; cursor: default; }
 @keyframes won { 50% { transform: scale(1.25); } }
 @keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
 .streak { text-align: center; color: var(--accent, #c9a45a); }
+.verses .verse { margin: .5em 0; animation: versein .6s ease; } .verses .who { color: var(--accent, #c9a45a); margin-right: .4em; }
+@keyframes versein { from { opacity: 0; transform: translateY(6px); } }

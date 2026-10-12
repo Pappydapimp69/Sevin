@@ -339,6 +339,22 @@ export function createUI(api) {
     next();
   }
 
+  // ---------------------------------------------------------------- the song at the fire
+  // Around the fire, a verse each, sung to their own whistle, one after another.
+  function song(verses, v) {
+    const list = h("div", { class: "verses" });
+    const go = btn("Go on", () => finish(), "primary");
+    let timers = [], done = false;
+    const finish = () => { if (done) return; done = true; timers.forEach(clearTimeout); close(); v.done(); };
+    verses.forEach((vs, i) => timers.push(setTimeout(() => {
+      list.append(h("p", { class: "verse" }, h("span", { class: "who" }, vs.name), "  “" + vs.line + "”"));
+      v.sing(vs);
+    }, 600 + i * 2600)));
+    timers.push(setTimeout(() => { go.textContent = "Go on"; }, 600 + verses.length * 2600));
+    show("song", h("h2", {}, "Around the fire"), h("p", { class: "small" }, "Somebody starts it, and everyone sings what the day was, a verse each."), list, h("div", { class: "row" }, go));
+    onCancel = finish;
+  }
+
   // ---------------------------------------------------------------- the morning choice
   // Two of one person at the fire, and only one can stay. A game show: two
   // answers, three lifelines a run (ask the team, ask one, ask both), and a
@@ -619,7 +635,7 @@ export function createUI(api) {
   }
   function hideHud() { $("hud").hidden = true; }
 
-  return { title, recruit, choose, whistlePad, learn, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
+  return { title, recruit, choose, whistlePad, learn, song, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
 }
 
 const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
