@@ -560,6 +560,7 @@ function tickMember(sim, m, dt, hours) {
         m.workT = sim.time;
         P.left -= hours * buildRate(m, sim);
         if (!P.hands.includes(m.id)) P.hands.push(m.id);
+        buildPractice(sim, m, hours);
         if (P.left <= 0) pitchDone(sim);
       }
       break;
@@ -587,6 +588,13 @@ function tickMember(sim, m, dt, hours) {
 
 // Skills grow with use, for everyone, with noise. A fake grows faster, and the
 // faster step hides inside ordinary growth: suspicious, never certain.
+// Building is learned by the hour, not by the camp: every hour on a camp is a
+// lesson (twice the usual step), so by the third area the builders are quick.
+function buildPractice(sim, m, hours) {
+  m.buildHours = (m.buildHours || 0) + hours;
+  while (m.buildHours >= 1) { m.buildHours -= 1; practice(sim, m, "build"); practice(sim, m, "build"); }
+}
+
 export function practice(sim, m, k) {
   if (m === "you") return;
   const n = stream(hash("grow", sim.seed, m.id, k, Math.floor(sim.time * 4)))();
@@ -627,6 +635,7 @@ function helpWork(sim, m, hours) {
     if (dist(m, sim.pitch) > 7) return;
     sim.pitch.left -= hours * buildRate(m, sim);
     sim.pitch.hands.includes(m.id) || sim.pitch.hands.push(m.id);
+    buildPractice(sim, m, hours);
     m.workT = sim.time;
     if (sim.pitch.left <= 0) pitchDone(sim);
   } else if (w.kind === "strike") {
