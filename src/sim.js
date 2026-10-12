@@ -1465,8 +1465,7 @@ export function tick(sim, dt, input = {}) {
 
   // after dark a camp fire does not stay out while there is wood on the pile
   if (!sim.tutorial && sim.camp.up && !sim.camp.lit && sim.camp.pile > 0 && isNight(sim.time)) {
-    sim.camp.pile -= 1; sim.camp.lit = true; sim.camp.fire = 1;
-    note(sim, { verb: "lit", actor: "you", object: "fire", cls: "fire", x: sim.camp.x, y: sim.camp.y });
+    sim.camp.pile -= 1; sim.camp.lit = true; sim.camp.fire = 1;      // nobody's act: not in the record
     sim.events.push({ kind: "lit" });
   }
   // the fire burns whenever it is lit, and takes from the pile as it goes: a piece an hour
