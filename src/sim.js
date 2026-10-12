@@ -1025,6 +1025,9 @@ export function whistle(sim, power = 1) {
     if (dist(ms, sim.player) > 70 * power) continue;
     ms.answerAt = sim.time + 0.008 + dist(ms, sim.player) * 0.0001;
   }
+  // the thing that whistled when you woke answers too, from where it whistled: going there is how you find nobody
+  const fs = sim.falseSrc;
+  if (fs && inSmallHours(sim.time) && fs.answerAt == null && dist(fs, sim.player) <= 70 * power) fs.answerAt = sim.time + 0.008 + dist(fs, sim.player) * 0.0001;
   let summonedId = null;
   // after dark nobody leaves the fire for a whistle: they answer, and stay
   if (second && inRange.length && isNight(sim.time)) say(sim, "They whistle back, but after dark nobody leaves the fire.", "talk");
@@ -1382,6 +1385,8 @@ export function tick(sim, dt, input = {}) {
   }
   Grove.tickFruit(sim, hours, 1 + areaAt(sim, p.y) * 0.6);
   // a whistle from the dark on a quiet night: nobody is out there
+  const fsrc = sim.falseSrc;
+  if (fsrc && fsrc.answerAt != null && sim.time >= fsrc.answerAt) { fsrc.answerAt = null; sim.events.push({ kind: "answer", x: fsrc.x, y: fsrc.y, voice: fsrc.voice, ctx: whistleCtx(sim, { x: fsrc.x, y: fsrc.y, slot: fsrc.slot }) }); }
   const fw = sim.falseWhistle;
   if (fw && sim.time >= fw.at) { sim.falseWhistle = null; sim.events.push({ kind: "answer", x: fw.x, y: fw.y, voice: fw.voice, ctx: whistleCtx(sim, { x: fw.x, y: fw.y, slot: fw.slot }) }); }
 

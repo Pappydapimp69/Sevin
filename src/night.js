@@ -212,6 +212,7 @@ export function sleep(sim) {
     if (r() < 0.35 && near.length) {
       const who = near[Math.floor(r() * near.length)], a = r() * Math.PI * 2, dd = 30 + r() * 25;
       sim.falseWhistle = { at: sim.time + 0.012, x: p.x + Math.cos(a) * dd, y: p.y + Math.sin(a) * dd, voice: who.voice, slot: who.slot };
+      sim.falseSrc = { x: sim.falseWhistle.x, y: sim.falseWhistle.y, voice: who.voice, slot: who.slot };   // and it answers you, all night
     }
   }
 
@@ -257,6 +258,7 @@ export function dawn(sim) {
   if (bearing == null && n.rFalse < 0.22) bearing = Math.floor(n.rBear * 8);
   sim.call = bearing == null ? null : { day: nd, bearing };
   sim.night = null;
+  sim.falseSrc = null;
   sim.asleep = false;
   sim.wantSleep = false;
   sim.wantDawn = false;
