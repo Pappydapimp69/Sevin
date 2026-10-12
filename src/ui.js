@@ -203,7 +203,7 @@ export function createUI(api) {
         ? `The woodpile has ${sim.camp.pile}. Set anyone's work, any time in daylight, here at camp. Out there you can only whistle people back to you.`
         : sim.pitch
           ? `Camp is still going up by the ${sim.pitch.place}. Set the day's work.`
-          : `There is no camp. Only you can make one (${KEYS[api.scheme()].camp}), and it takes ${CAMP_WOOD} of the team's wood.`)),
+          : `There is no camp. Mark a site (${KEYS[api.scheme()].camp}); the team brings wood there, and ${CAMP_WOOD} from its pile makes the camp.`)),
       call,
       h("table", { class: "grid" }, rows),
       h("p", { class: "small" }, "On the deadfall (Cutting): they cut until their shift ends. Gathering wood (Carrying): they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
@@ -339,9 +339,14 @@ export function createUI(api) {
       if (atCamp(sim, sim.player) && !sim.keystone.active && !isNight(sim.time)) items.push(btn("Set the team's work", () => { close(); v.plan(); }));
     } else {
       const here = sim.pitch && Math.hypot(sim.pitch.x - sim.player.x, sim.pitch.y - sim.player.y) < 5;
-      items.push(btn(here ? "Keep making camp" : "Make camp here", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
-      const wood = sim.camp.pile + sim.player.wood, paid = sim.pitch && here;
-      if (!v.canMake()) items.push(h("p", { class: "small" }, !paid && wood < CAMP_WOOD ? `A camp takes ${CAMP_WOOD} wood. The team has ${wood}.` : "A camp needs open ground all round."));
+      const atSite = sim.site && Math.hypot(sim.site.x - sim.player.x, sim.site.y - sim.player.y) < 6;
+      if (here) items.push(btn("Keep making camp", () => { close(); v.make(); }, "primary"));
+      else if (atSite) {
+        items.push(btn(`Make camp (${CAMP_WOOD} wood from this pile)`, () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
+        if (!v.canMake()) items.push(h("p", { class: "small" }, `The pile here has ${sim.camp.pile} of the ${CAMP_WOOD} a camp takes. Drop what you carry, and the team brings wood here.`));
+      }
+      items.push(btn(sim.site ? "Move the camp site here" : "Mark the camp site here", () => { close(); v.mark(); }, v.canMark() ? (sim.site ? "" : "primary") : "disabled"));
+      if (!v.canMark() && !sim.pitch) items.push(h("p", { class: "small" }, "A camp needs open ground all round."));
     }
     // the evening at the fire, until ten
     if (v.evening()) {
@@ -360,7 +365,7 @@ export function createUI(api) {
     if (v.canWalkOut()) items.push(btn("Walk out of the woods", () => { close(); v.walkOut(); }, "primary"));
     items.push(btn(isNight(sim.time) || hourOf(sim.time) >= DUSK - 1 ? "Sleep" : "Sleep (not until dusk)", () => { close(); v.sleep(); }, v.canSleep() ? "" : "disabled"));
     show("camp", h("h2", {}, "Camp"),
-      h("p", {}, sim.camp.up ? `Camp is up. The fire is ${fireWords(sim.camp)}. The pile has ${sim.camp.pile}.` : `No camp. The team has ${sim.camp.pile + sim.player.wood} wood of the ${CAMP_WOOD} a camp takes${sim.player.carryingKit ? "; you carry the kit" : ""}.`),
+      h("p", {}, sim.camp.up ? `Camp is up. The fire is ${fireWords(sim.camp)}. The pile has ${sim.camp.pile}.` : (sim.site ? `No camp yet. The site by the ${sim.site.place} has ${sim.camp.pile} of the ${CAMP_WOOD} wood a camp takes.` : `No camp, and no site marked: the team has nowhere to bring wood.`) + ` You carry ${sim.player.wood} wood${sim.player.carryingKit ? " and the kit" : ""}.`),
       h("div", { class: "stack" }, items), h("div", { class: "row" }, btn("Close", close)));
     onCancel = close;
   }
@@ -448,7 +453,7 @@ export function createUI(api) {
     const wood = shownWood(sim);
     if (wood) bits.push(`carrying ${wood} wood`);
     if (sim.player.carryingKit) bits.push("the camp kit");
-    if (!sim.camp.up && !sim.tutorial) bits.push(`team wood ${sim.camp.pile + sim.player.wood}/${CAMP_WOOD}`);
+    if (!sim.camp.up && !sim.tutorial) bits.push(sim.site ? `site pile ${sim.camp.pile}/${CAMP_WOOD}` : "no camp site");
     if (sim.player.holding) bits.push("it, in both hands");
     if (sim.player.glows?.length) bits.push(`${sim.player.glows.length} glowing branch${sim.player.glows.length > 1 ? "es" : ""}`);
     if (sim.player.glowUntil != null && sim.time < sim.player.glowUntil) bits.push("a lit branch");

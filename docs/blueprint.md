@@ -194,14 +194,16 @@ a person stands one more day.
 - At 06:00 what lies on the ground turns true: glow sticks go to plain wood,
   limbs are limbs.
 
-## Wood and the first camp
+## Wood and the camp site
 
-The team's wood is one store (`camp.pile`): at the camp, or with you and the kit
-when there is none; taking camp down keeps it. Only you make a camp, and it
-takes 10 of that wood (the store first, then your arms). Nobody carries more
-than 5. A run starts with everyone using their judgement and no task screen;
-before the first camp, its wood is what they go for. Tasks are set at camp, in
-daylight, any time, from the camp menu.
+You mark where the camp goes (camp menu); that is the drop zone the team brings
+wood to, and your own wood drops there as you walk up. A camp takes 10 from that
+pile only. You carry 10 with no camp up, 5 with one; a teammate carries 4. With
+no site marked, gatherers cut until their arms are full and wait by you. Taking
+camp down leaves the pile where it stood and gives you back the 10 it was made
+of. Moving a site leaves its wood behind too. Gatherers haul an old pile to the
+new camp or site on 80% of trips (side hash per trip). Tasks are set at camp, in
+daylight, any time; everyone starts on auto.
 
 ## The morning choice (`ui.choose`, `percept.voteOf`)
 

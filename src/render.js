@@ -203,6 +203,24 @@ export function createRenderer(canvas) {
     return B;
   }
 
+  function heapMesh() {
+    const g = new THREE.Group(), logs = [];
+    const logMat = new THREE.MeshLambertMaterial({ color: 0x6b4c30 });
+    for (let k = 0; k < 20; k++) {
+      const l = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.2, 6), logMat);
+      l.rotation.z = Math.PI / 2;
+      l.position.set(1.4, 0.1 + Math.floor(k / 4) * 0.2, (k % 4) * 0.22 - 0.33);
+      g.add(l); logs.push(l);
+    }
+    const stake = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.8, 5), logMat); pole.position.y = 0.9;
+    const rag = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.3), new THREE.MeshLambertMaterial({ color: 0xc8553d, side: THREE.DoubleSide })); rag.position.set(0.26, 1.6, 0);
+    stake.add(pole, rag); g.add(stake);
+    g.userData.logs = logs; g.userData.stake = stake;
+    scene.add(g);
+    return g;
+  }
+
   function figure(colour, pick) {
     const g = new THREE.Group();
     const mat = new THREE.MeshLambertMaterial({ color: colour });
@@ -332,6 +350,19 @@ export function createRenderer(canvas) {
     C.light.intensity = seenFire.lit ? 6 + fuel * 18 : 0;
     C.light.distance = 10 + fuel * 18;
     C.pile.forEach((l, k) => (l.visible = k < camp.pile));
+
+    // the marked site (a stake, and the wood brought to it) and the piles left where camps stood
+    B.piles ||= [];
+    const heaps = [...(sim.site && !camp.up ? [{ x: sim.site.x, y: sim.site.y, n: camp.pile, stake: true }] : []), ...(sim.piles || [])];
+    while (B.piles.length < heaps.length) B.piles.push(heapMesh());
+    B.piles.forEach((g, i) => {
+      const hp = heaps[i];
+      g.visible = !!hp;
+      if (!hp) return;
+      g.position.set(hp.x, 0, -hp.y);
+      g.userData.logs.forEach((l, k) => (l.visible = k < hp.n));
+      g.userData.stake.visible = !!hp.stake;
+    });
 
     // people
     const seen = new Set();

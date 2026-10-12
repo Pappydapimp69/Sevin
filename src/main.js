@@ -74,7 +74,7 @@ function recruit(seed) {
   const names = makeRoster(stream(hash("names", seed)), 5);
   ui.recruit(names, (team) => {
     const run = S.createRun({ seed, party: team });
-    S.say(run, `You walk in at the south end of the trail with the camp kit. There is no camp: only you can make one, from ${S.CAMP_WOOD} of the team's wood. Everyone is using their judgement; they will bring wood to you. Nobody carries more than ${S.CARRY_MAX}.`);
+    S.say(run, `You walk in at the south end of the trail with the camp kit. Mark where the camp goes from the camp menu: the team brings wood there, and ${S.CAMP_WOOD} from that pile makes the camp.`);
     S.say(run, "Somewhere north, a deadfall lies across the trail.");
     start(run);
     Save.saveRun(run);
@@ -113,6 +113,8 @@ const campVerbs = {
   make: () => { if (S.makeCamp(sim)) S.say(sim, "You start making camp. Alone it is most of a morning; whoever is near helps. Stand still."); },
   canStrike: () => S.canStrikeCamp(sim),
   canMake: () => S.canMakeCamp(sim),
+  canMark: () => S.canMarkSite(sim),
+  mark: () => S.markSite(sim),
   canSleep: () => canSleep(sim),
   sleep: () => doSleep(),
   plan: () => { sim.plan.pending = "dawn"; openPending(); },
