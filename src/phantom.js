@@ -34,7 +34,7 @@ const kindOf = (sim, id) => (stream(hash("kind", sim.seed, id))() < 0.02 ? "snak
 
 /** The slither's head at `e` seconds, and how far it has sunk back into the ground. */
 function slitherAt(sl, e) {
-  const d = 0.9 * e + 0.25 * e * e;           // it starts slow and then goes
+  const d = (0.9 * e + 0.25 * e * e) * (sl.k ?? 1);   // it starts slow and then goes; each at its own pace
   return { x: sl.x + Math.cos(sl.ang) * d, y: sl.y + Math.sin(sl.ang) * d, ang: sl.ang, t: e, sink: Math.max(0, (e - 4) / 1.5) };
 }
 
@@ -108,7 +108,8 @@ export function tickPhantom(sim, hours) {
   for (const s of phantomSticks(sim)) {
     if (s.slither || s.kind !== "snake" || Math.hypot(s.x - sim.player.x, s.y - sim.player.y) > SNAKE_M) continue;
     const away = Math.atan2(s.y - sim.player.y, s.x - sim.player.x) + (stream(hash("wind", sim.seed, s.id))() - 0.5) * 0.9;
-    ph.slither[s.id] = { x: s.x, y: s.y, ang: away, t0: sim.time };
+    // 70% to 130% of the usual pace, its own every time (side hash on the stick)
+    ph.slither[s.id] = { x: s.x, y: s.y, ang: away, t0: sim.time, k: 0.7 + 0.6 * stream(hash("pace", sim.seed, s.id))() };
     sim.events.push({ kind: "hiss" });
   }
   for (const [id, v] of Object.entries(ph.slither)) {
