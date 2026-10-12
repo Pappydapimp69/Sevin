@@ -69,7 +69,7 @@ export const buildRate = (who, sim) => (who === "you"
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
 // pieces out of it. Carrying makes a bigger haul likelier, never certain.
 // The roll is a side hash (who, which chop), not the run stream.
-export const WOOD_CHOP_HOURS = 1;
+export const WOOD_CHOP_HOURS = 2;       // gathering: two hours a piece
 export function woodPerChop() { return 1; }          // one piece an hour's chop
 
 /** Deeper woods eat the fire faster: +50% a level of depth below the first. */
@@ -570,7 +570,7 @@ export function practice(sim, m, k) {
 // A deadfall takes `work` person-hours unskilled; cut skill makes an hour count
 // for more, as a percentage, so it never floors at zero.
 export function chopRate(who) {
-  return (1 + 0.18 * skill(who, "cut")) / 2;      // halved: a deadfall takes twice as long
+  return 1 + 0.18 * skill(who, "cut");
 }
 
 function chopAt(sim, i, who, hours) {
