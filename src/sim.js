@@ -76,7 +76,8 @@ export function woodPerChop() { return 1; }          // one piece an hour's chop
 
 /** Deeper woods eat the fire faster: +50% a level of depth below the first. */
 export const burnRate = () => 1;      // a lit fire eats one piece of the pile an hour
-export const WOODPILE_MAX = 15;       // what a camp's woodpile holds
+export const WOODPILE_MAX = 15;
+export const WOOD_FLOOR = 10;         // auto keeps at least this much at camp       // what a camp's woodpile holds
 /** Put wood on the camp's (or site's) pile, up to what it holds. Returns what did not fit. */
 export function toPile(sim, n) {
   const room = Math.max(0, WOODPILE_MAX - sim.camp.pile), put = Math.min(room, n);
@@ -1267,6 +1268,14 @@ export function autoScores(sim, m) {
     ? Math.max(0, 7 - sim.camp.pile) + m.skills.carry * 0.5 - others("gather") * 1.5
     : Math.max(1, CAMP_WOOD + 2 - sim.camp.pile) * 1.5 + m.skills.carry * 0.5 - others("gather") * 0.4)
     + (woodDest(sim) && sim.piles.some((pl) => pl !== woodDest(sim) && pl.n > 0) ? 3 : 0);       // an old pile to bring over
+  // Keep at least ten at camp: one on wood for every five short, the best hands for it first.
+  if (sim.camp.up || sim.site) {
+    const need = Math.ceil(Math.max(0, WOOD_FLOOR - sim.camp.pile) / 5);
+    const woodHand = (o) => (o.skills.carry || 0) + ((o.skills.cut || 0) >= 2 ? o.skills.cut : 0);
+    const rank = party(sim).filter((o) => o.task === "auto" && !o.sleeping).sort((a, b) => woodHand(b) - woodHand(a) || a.id - b.id).indexOf(m);
+    if (rank >= 0 && rank < need) s.gather = 50 + woodHand(m);
+    else if (sim.camp.up) s.gather = Math.min(s.gather, 2);
+  }
   const i = currentDeadfall(sim);
   if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
   if (sim.camp.up) s.camp = 1.5 + m.skills.fire * 0.5 + (hourOf(sim.time) >= DUSK - 3 ? 3 : 0) - others("camp") * 2;
