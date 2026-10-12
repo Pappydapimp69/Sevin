@@ -537,7 +537,7 @@ export function createUI(api) {
     const lines = [];
     if (sch === "touch") {
       if (view.action) lines.push(`${view.action.label} (tap it, or Use)`);
-      if (view.target) lines.push(`Ask ${view.target.name} (tap them)`);
+      if (view.target) lines.push(`Ask ${view.target.name} (${K("{ask}")})`);
     } else {
       if (view.action) lines.push(`${glyph("act", sch)} ${view.action.label}`);
       if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);

@@ -195,15 +195,9 @@ function verb(v, arg) {
 // A tap on the world acts on whatever is under the finger, if it is in reach.
 function tap(x, y) {
   if (!sim || paused) return;
-  const hit = renderer.pick(x, y);
+  // a tap on someone does nothing (Ask is its own button); it reaches what is behind them
+  const hit = renderer.pick(x, y, ["member"]);
   if (!hit) return;
-  if (hit.kind === "member") {
-    const m = S.party(sim).find((p) => p.id === hit.id);
-    if (!m) return;
-    if (Math.hypot(m.x - sim.player.x, m.y - sim.player.y) > 5 * tolerance()) { S.say(sim, `${m.name} is too far away to ask. Walk closer.`); return; }
-    ui.ask(sim, m, (id, day) => S.askMember(sim, id, day));
-    return;
-  }
   const kinds = hit.kind === "fire" ? ["light", "feed"] : [hit.kind];
   const t = S.actionTargets(sim, tolerance()).find((a) => kinds.includes(a.kind) && a.id === hit.id);
   if (!t) {

@@ -516,7 +516,7 @@ export function createRenderer(canvas) {
 
   // What is under a point on the screen: {kind, id} of the nearest visible thing.
   const ray = new THREE.Raycaster();
-  function pick(clientX, clientY) {
+  function pick(clientX, clientY, skip = []) {
     if (!built) return null;
     const r = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
@@ -526,7 +526,7 @@ export function createRenderer(canvas) {
       if (owner && !owner.visible) continue;
       let up = o.parent, shown = true;
       while (up) { if (up.visible === false) shown = false; up = up.parent; }
-      if (!shown) continue;
+      if (!shown || skip.includes(o.userData.pick?.kind)) continue;
       return { ...o.userData.pick, dist: hit.distance };
     }
     return null;
