@@ -1296,7 +1296,7 @@ export function autoScores(sim, m) {
   // You are working (a deadfall, a tree, a camp going up or down): those on auto come and lend
   // a hand, the ones best at it first, a couple at most.
   const job = sim.work && { chop: "cut", fell: "cut", make: "build", strike: "build" }[sim.work.kind];
-  if (job && !isNight(sim.time)) {
+  if (job && (!isNight(sim.time) || sim.work.kind === "make")) {        // a camp going up after dark: everyone helps
     const helpers = party(sim).filter((o) => o !== m && o.task === "auto" && o.autoTask === "follow").length;
     s.follow = 30 + (m.skills[job] || 0) * 2 - helpers * 12;
   }
@@ -1447,7 +1447,8 @@ export function tick(sim, dt, input = {}) {
   // Work that spends the day runs the day fast: chopping, asking, making or taking down camp.
   // After dark the clock keeps its own pace.
   const fast = sim.work && ["chop", "ask", "make", "strike", "fell"].includes(sim.work.kind);
-  const speed = fast && (sim.work.kind === "ask" || !isNight(sim.time)) && !(moving && sim.work.kind === "make") ? WORK_SPEED : 1;
+  // making camp runs fast after dark too: a camp half up at nightfall is the one thing that cannot wait
+  const speed = fast && (sim.work.kind === "ask" || sim.work.kind === "make" || !isNight(sim.time)) && !(moving && sim.work.kind === "make") ? WORK_SPEED : 1;
   let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;
   sim.time += hours;
