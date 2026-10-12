@@ -115,7 +115,7 @@ plan opens when the last is back. From seed, no run-stream draws; old saves skip
 
 Your meter drains like everyone's and nothing announces it. Below 0.75 the ground
 offers sticks that are not there, fixed in the world on a 5 m grid (derived from
-seed, day and cell, so nothing pops in round you). About 40% of them are not
+seed, day and cell, so nothing pops in round you). About 2% of them are not
 sticks: come within 4 m and the thing wakes, hisses and slithers away, then sinks
 into the leaves; you can pick them up and the pack count rises, but only the
 SHOWN count. Walking into camp you "drop" them and the pile does not grow.

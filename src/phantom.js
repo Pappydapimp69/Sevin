@@ -30,7 +30,7 @@ export const mindLevel = mind;
 // cells. Some of them are not sticks. When you come close the thing wakes and
 // slithers away through the leaves.
 const CELL_M = 5, SHOW_M = 15, SNAKE_M = 4, SLITHER_S = 5.5;
-const kindOf = (sim, id) => (stream(hash("kind", sim.seed, id))() < 0.4 ? "snake" : "stick");
+const kindOf = (sim, id) => (stream(hash("kind", sim.seed, id))() < 0.02 ? "snake" : "stick");   // rare: 2%
 
 /** The slither's head at `e` seconds, and how far it has sunk back into the ground. */
 function slitherAt(sl, e) {
