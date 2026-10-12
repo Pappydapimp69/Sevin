@@ -141,3 +141,4 @@ button[aria-disabled="true"] { opacity: .4; cursor: default; }
 .padkeys .kU { grid-column: 2; grid-row: 1; } .padkeys .kL { grid-column: 1; grid-row: 2; }
 .padkeys .kR { grid-column: 3; grid-row: 2; } .padkeys .kD { grid-column: 2; grid-row: 3; }
 .padkeys button { font-size: 1.3em; padding: 0; }
+#build { position: fixed; right: 6px; bottom: 4px; font-size: 10px; opacity: .35; pointer-events: none; z-index: 1; }
