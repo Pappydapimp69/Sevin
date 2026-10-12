@@ -764,7 +764,7 @@ export function actionTargets(sim, tolerance = 1) {
   }
   // a forest tree within reach: cut it down for wood. The forest stays a wall; a stump is a stump.
   if (!sim.tutorial) {
-    let best = null, bd = R(2.6);
+    let best = null, bd = R(2.2);
     for (let i = 0; i < W.trees.length; i++) {
       const t = W.trees[i], d = dist(t, p);
       if (d < bd && !sim.felled.includes(i)) { bd = d; best = i; }
@@ -789,9 +789,14 @@ export function resolveAction(sim, tolerance = 1) {
   for (const t of actionTargets(sim, tolerance)) {
     const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
     const ang = d < 0.9 || t.area ? 0 : Math.acos(Math.max(-1, Math.min(1, (dx * fx + dy * fy) / d)));
-    if (ang > cone) continue;
-    // at the fire with a glowing branch, waking it comes before feeding
-    const score = ang * 2 + d * 0.25 + (t.area ? 3 : 0) - (t.kind === "snap" ? 1 : 0);
+    // a tree is something you face squarely; things on the ground get the wide cone
+    const ground = (t.h ?? 1) < 0.8;
+    if (ang > (t.kind === "fell" ? 0.45 * tolerance : cone)) continue;
+    // where you look says what you mean: eyes down, the ground; eyes level, the tree
+    const down = Math.max(0, -(p.pitch || 0));
+    const score = ang * 2 + d * 0.25 + (t.area ? 3 : 0)
+      - (t.kind === "snap" ? 1 : 0)                       // at the fire with a glowing branch, waking it comes before feeding
+      - (ground ? down * 1.5 : 0) + (t.kind === "fell" ? 0.6 + down * 2 : 0);
     if (score < bs) { bs = score; best = t; }
   }
   return best;
