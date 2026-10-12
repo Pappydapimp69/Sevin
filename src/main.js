@@ -226,7 +226,7 @@ function doSleep() {
   const atFire = sim.camp.up && S.atCamp(sim, sim.player);
   // Ending the day before ten: the fire first. Talk, then a song, then the watch, then the tents.
   // After ten there is no song; whoever is still up turns in.
-  if (atFire && S.hourOf(sim.time) < S.EVENING_END && S.hourOf(sim.time) >= S.DUSK - 1 && sim.sangDay !== S.today(sim) && S.party(sim).some((m) => S.atCamp(sim, m) && !m.sleeping)) {
+  if (atFire && S.hourOf(sim.time) < S.EVENING_END && S.hourOf(sim.time) >= S.DUSK - 1 && sim.sangDay !== S.today(sim) && S.party(sim).some((m) => !m.sleeping)) {
     campEvening(() => doSleep());
     return;
   }
@@ -241,6 +241,23 @@ function doSleep() {
 function campEvening(then) {
   sim.campEvent = true;
   sim.sangDay = S.today(sim);
+  // Whoever is still out is called in, and the song waits for them (a while, not forever).
+  const out = S.party(sim).filter((m) => !m.sleeping && !S.atCamp(sim, m));
+  if (out.length) {
+    S.say(sim, "You call them in to the fire.", "talk");
+    for (const m of out) { m.called = false; m.summonUntil = null; m.state = "home"; m.goal = { x: sim.camp.x, y: sim.camp.y }; }
+    const t0 = performance.now();
+    const wait = () => {
+      if (!sim) return;
+      const still = S.party(sim).filter((m) => !m.sleeping && !S.atCamp(sim, m));
+      if (still.length && performance.now() - t0 < 15000) return setTimeout(wait, 500);
+      startSong(then);
+    };
+    return setTimeout(wait, 500);
+  }
+  startSong(then);
+}
+function startSong(then) {
   const ps = S.party(sim).filter((m) => S.atCamp(sim, m) && !m.sleeping);
   const talk = ps.slice(0, 3).map((m, i) => `${m.name}: “${chatter(sim, m, Math.floor(sim.time * 3) + i)}”`);
   S.say(sim, "Everyone comes in close to the fire.", "talk");
