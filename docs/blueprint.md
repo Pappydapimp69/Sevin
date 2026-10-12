@@ -94,9 +94,9 @@ title button. `#nosplash` skips it.
   when the camp moves two areas past them.
 - **Rescue.** Only you can bring someone back. They come home beside the one
   who never left, same name. One of two is real.
-- **Ask.** Ask anyone about any day you lived through. Costs half an hour.
-  Accounts are derived from the day's record. A fake's has exactly one fact
-  bent, using values from that same record, and only a fact you witnessed.
+- **No Ask verb.** The evening at the fire replaced it: the songs are each one's
+  account of the day (a fake's has its one bent fact) and the calls are learned
+  there. Accounts are still asked of a head, once, and at the morning choice.
 - **Pylons.** 3 in area 1, 2-4 after. Lighting takes two pairs of hands. It
   shields the area's depth for 36h (blue to red). A fake cannot be the second
   pair of hands: it vanishes. The pylon is spent either way.

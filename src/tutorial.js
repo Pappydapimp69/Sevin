@@ -44,11 +44,6 @@ export const STEPS = [
     done: (s) => s.camp.lit,
   },
   {
-    id: "ask", verb: "ask",
-    text: "Ask Orla or Benet about today: {askthem}. Out here, what someone remembers is the only evidence there is. Listen for anything that is not how it was.",
-    done: (s) => s.stats.asked >= 1,
-  },
-  {
     id: "call", verb: "call",
     text: "Press {call} to whistle: everyone in earshot whistles back, each in their own way (learn them). Whistle again within three seconds and the nearest stops what they are doing and comes to you for half an hour.",
     done: (s) => s.members.some((m) => m.summonUntil != null && s.time < m.summonUntil),
@@ -70,7 +65,7 @@ export const STEPS = [
   },
   {
     id: "end", verb: null,
-    text: "That is the training. Out there, you set everyone's work at dawn, and at dusk you say who keeps watch. Then you sleep ({sleep}). The woods are north. Somebody will not be who they were. You will have to ask.",
+    text: "That is the training. Out there, you set everyone's work at dawn, and at dusk you say who keeps watch. Then you sleep ({sleep}). In the evenings they sing what the day was, and whistle their calls: learn them. The woods are north. Somebody will not be who they were. Listen.",
     done: () => false,
   },
 ];

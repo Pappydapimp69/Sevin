@@ -5,7 +5,7 @@ import { sleep, dawn, canSleep, BEARINGS, bearingOf, swapOut } from "./night.js"
 import { createRenderer } from "./render.js";
 import { createInput } from "./input.js";
 import { createUI } from "./ui.js";
-import { createTutorial, tutorialStep } from "./tutorial.js";
+import { createTutorial, tutorialStep, STEPS } from "./tutorial.js";
 import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
 import { chatter, verses, shownWood } from "./percept.js";
@@ -172,12 +172,6 @@ function verb(v, arg) {
       verbAct(null);
       break;
     }
-    case "ask": {
-      const t = lookTarget();
-      if (!t) { S.say(sim, "Look at someone to ask them."); break; }
-      ui.ask(sim, t, (id, day) => S.askMember(sim, id, day));
-      break;
-    }
     case "call": {
       // a tap is a whistle; hold it and the pad comes up, to play someone's call
       if ((arg || 0) >= 0.45) { openPad(); break; }
@@ -185,7 +179,7 @@ function verb(v, arg) {
       S.say(sim, "You whistle.");
       break;
     }
-    case "camp": if (!sim.tutorial || sim.tut.step >= 8) ui.campMenu(sim, campVerbs); break;
+    case "camp": if (!sim.tutorial || STEPS[sim.tut.step]?.id === "strike" || STEPS[sim.tut.step]?.id === "end") ui.campMenu(sim, campVerbs); break;
     case "sleep": doSleep(); break;
     case "pause": ui.pause({ quit: () => { if (sim && !sim.tutorial) Save.saveRun(sim); title(); } }); break;
     case "help": ui.help(); break;

@@ -10,8 +10,8 @@
 // stick, 2/3 right stick. Chrome reports nothing until a pad's first press, so
 // it is polled every frame, in game and in menus.
 
-export const PAD_GAME = { 0: "act", 2: "ask", 3: "call", 4: "camp", 5: "sleep", 9: "pause", 8: "help" };
-export const KEY_GAME = { KeyE: "act", Space: "act", KeyQ: "ask", KeyF: "call", KeyC: "camp", KeyZ: "sleep", KeyH: "help", Escape: "pause", KeyP: "pause" };
+export const PAD_GAME = { 0: "act", 3: "call", 4: "camp", 5: "sleep", 9: "pause", 8: "help" };
+export const KEY_GAME = { KeyE: "act", Space: "act", KeyF: "call", KeyC: "camp", KeyZ: "sleep", KeyH: "help", Escape: "pause", KeyP: "pause" };
 const DEAD = 0.18;
 
 function stick(x, y) {

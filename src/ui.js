@@ -451,7 +451,7 @@ export function createUI(api) {
   const CONTROL_ROWS = [
     ["move", "walk"], ["look", "look"], ["run", "run"],
     ["act", "use what is in front of you: pick up, chop, light, feed, a pylon"],
-    ["ask", "ask the person you are looking at"], ["call", "whistle (everyone near answers); twice in three seconds calls the nearest over for half an hour"],
+["call", "whistle (everyone near answers); twice in three seconds calls the nearest over for half an hour"],
     ["camp", "camp: make it, take it down, plan the day, sleep"], ["sleep", "sleep (from dusk)"],
     ["pause", "pause"], ["menu", "move around menus"], ["back", "back out of a menu"],
   ];
@@ -537,10 +537,8 @@ export function createUI(api) {
     const lines = [];
     if (sch === "touch") {
       if (view.action) lines.push(`${view.action.label} (tap it, or Use)`);
-      if (view.target) lines.push(`Ask ${view.target.name} (${K("{ask}")})`);
     } else {
       if (view.action) lines.push(`${glyph("act", sch)} ${view.action.label}`);
-      if (view.target) lines.push(`${glyph("ask", sch)} Ask ${view.target.name}`);
     }
     $("prompt").textContent = lines.join("   ");
     // after dusk, at the camp: the day can end here
