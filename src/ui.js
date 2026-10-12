@@ -350,7 +350,8 @@ export function createUI(api) {
       list.append(h("p", { class: "verse" }, h("span", { class: "who" }, vs.name), "  “" + vs.line + "”"));
       v.sing(vs);
     }, 600 + i * 2600)));
-    timers.push(setTimeout(() => { go.textContent = "Go on"; }, 600 + verses.length * 2600));
+    // the song ends on its own and the call round follows; "Go on" only hurries it
+    timers.push(setTimeout(() => finish(), 600 + verses.length * 2600 + 2500));
     show("song", h("h2", {}, "Around the fire"), h("p", { class: "small" }, "Somebody starts it, and everyone sings what the day was, a verse each."), list, h("div", { class: "row" }, go));
     onCancel = finish;
   }

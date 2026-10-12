@@ -268,7 +268,7 @@ function startSong(then) {
   setTimeout(() => {
     if (!sim) return;
     // the song, then each one whistles their call and you play it back
-    campVerbs.sing(() => { if (!sim) return; campVerbs.learn(() => { sim.campEvent = false; if (!scene) then(); }); });
+    campVerbs.sing(() => { if (!sim) return; S.say(sim, "Then, one by one, they whistle their calls for you to learn.", "talk"); campVerbs.learn(() => { sim.campEvent = false; if (!scene) then(); }); });
   }, t0);
 }
 
