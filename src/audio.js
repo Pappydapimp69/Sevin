@@ -169,7 +169,7 @@ export function createAudio() {
 
     const c = sim.camp;
     const dist = Math.hypot(c.x - sim.player.x, c.y - sim.player.y);
-    const near = c.up && c.lit ? Math.max(0, 1 - dist / 25) : 0;
+    const near = c.up && c.lit ? Math.max(0, 1 - dist / 6.25) : 0;      // the fire is heard close to, and gone fast
     fire.g.gain.setTargetAtTime(near * 0.08, t, 0.3);
     crackleClock -= dt;
     if (near > 0 && crackleClock <= 0) { crackleClock = 0.05 + Math.random() * 0.4; burst({ freq: 2000 + Math.random() * 2000, dur: 0.03, gain: near * 0.35, q: 3 }); }

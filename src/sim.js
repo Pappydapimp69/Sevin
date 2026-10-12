@@ -64,7 +64,7 @@ export const PITCH_HOURS = 5;
 // area after) and with a mind that is going; teammates grow with practice.
 export const PLAYER_BUILD = [0.6, 0.5, 0.4, 0.3, 0.2];
 export const buildRate = (who, sim) => (who === "you"
-  ? PLAYER_BUILD[Math.min(PLAYER_BUILD.length - 1, areaAt(sim, sim.player.y))] * (0.5 + 0.5 * sim.player.sanity)
+  ? PLAYER_BUILD[Math.min(PLAYER_BUILD.length - 1, areaAt(sim, sim.player.y))] * (0.8 + 0.2 * sim.player.sanity)
   : 0.25 + 0.25 * (who.skills.build || 0));
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
 // pieces out of it. Carrying makes a bigger haul likelier, never certain.
@@ -1306,14 +1306,14 @@ export function tick(sim, dt, input = {}) {
   if (sim.work?.kind === "markout") {
     sim.work.t += dt;                              // real seconds
     if (sim.work.t >= sim.work.need) {
-      sim.work = null;
-      say(sim, "The camp is marked out. The builders will put it up; stand at it and use the camp menu to lend a hand.", "good");
+      sim.work = { kind: "make" };
+      say(sim, "The camp is marked out. You keep at it until you walk away from it; the builders help.", "good");
     }
   }
   const fwd = pickingUp ? 0 : input.fwd || 0, side = pickingUp ? 0 : input.side || 0;
   const moving = Math.abs(fwd) + Math.abs(side) > 0.05;
   if (moving) {
-    if (sim.work && sim.work.kind !== "ask") {
+    if (sim.work && sim.work.kind !== "ask" && sim.work.kind !== "make") {
       if (sim.work.kind === "make" || sim.work.kind === "strike") say(sim, "You leave the camp work half done.");
       sim.work = null;
     }
@@ -1334,7 +1334,7 @@ export function tick(sim, dt, input = {}) {
   // Work that spends the day runs the day fast: chopping, asking, making or taking down camp.
   // After dark the clock keeps its own pace.
   const fast = sim.work && ["chop", "ask", "make", "strike"].includes(sim.work.kind);
-  const speed = fast && (sim.work.kind === "ask" || !isNight(sim.time)) ? WORK_SPEED : 1;
+  const speed = fast && (sim.work.kind === "ask" || !isNight(sim.time)) && !(moving && sim.work.kind === "make") ? WORK_SPEED : 1;
   let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;
   sim.time += hours;
@@ -1343,7 +1343,8 @@ export function tick(sim, dt, input = {}) {
   const hb = hourOf(before);
   if (!sim.tutorial && hb >= DUSK && hb < EVENING_END && hourOf(sim.time) >= EVENING_END && !sim.campEvent) {
     for (const m of party(sim)) {
-      if (m.watch || m.sleeping || !atCamp(sim, m)) continue;
+      // at camp; or, with no camp, wherever they are with you
+      if (m.watch || m.sleeping || (sim.camp.up ? !atCamp(sim, m) : dist(m, p) > 30)) continue;
       m.bedAt = before - hb + EVENING_END + (5 + stream(hash("bed", sim.seed, m.id, today(sim)))() * 40) / 60;
     }
     say(sim, "It is ten. One by one, they turn in.", "info");
