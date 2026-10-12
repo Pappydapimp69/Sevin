@@ -8,7 +8,7 @@ import { createUI } from "./ui.js";
 import { createTutorial, tutorialStep } from "./tutorial.js";
 import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
-import { chatter, verses } from "./percept.js";
+import { chatter, verses, shownWood } from "./percept.js";
 import * as Grove from "./grove.js";
 import { glyphs } from "./voice.js";
 import * as Save from "./save.js";
@@ -204,7 +204,13 @@ function tap(x, y) {
   }
   const kinds = hit.kind === "fire" ? ["light", "feed"] : [hit.kind];
   const t = S.actionTargets(sim, tolerance()).find((a) => kinds.includes(a.kind) && a.id === hit.id);
-  if (!t) { S.say(sim, "Too far. Walk closer."); return; }
+  if (!t) {
+    // wood is not offered to full arms: say that, not "too far"
+    const full = shownWood(sim) >= S.carryMax(sim);
+    const glowFull = (sim.player.glows?.length || 0) >= S.GLOW_MAX;
+    if ((hit.kind === "stick" && full) || (hit.kind === "gpick" && (full || glowFull))) { S.say(sim, "Your arms are full."); return; }
+    S.say(sim, "Too far. Walk closer."); return;
+  }
   if (sim.tutorial && tutorialStep(sim)?.id === "end") return;
   verbAct(t);
 }
