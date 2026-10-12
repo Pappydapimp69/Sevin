@@ -8,7 +8,7 @@ import { createUI } from "./ui.js";
 import { createTutorial, tutorialStep, STEPS } from "./tutorial.js";
 import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
-import { chatter, verses, shownWood } from "./percept.js";
+import { chatter, verses, shownWood, voiceLine, kinAtTheEdge } from "./percept.js";
 import * as Grove from "./grove.js";
 import { glyphs } from "./voice.js";
 import * as Save from "./save.js";
@@ -20,7 +20,7 @@ const renderer = createRenderer(canvas);
 let sim = null;
 let paused = true;
 let lastSave = 0;
-let chatClock = 0;
+let chatClock = 0, voiceClock = 0;
 
 const audio = createAudio();
 const input = createInput(canvas, (v, a) => { audio.unlock(); verb(v, a); }, { onScheme: () => { ui.rekey(); paintSplash(); }, onTap: (x, y) => tap(x, y) });
@@ -182,6 +182,8 @@ function verb(v, arg) {
       if ((arg || 0) >= 0.45) { openPad(); break; }
       S.whistle(sim, 1);
       S.say(sim, "You whistle.");
+      kinAnswers();
+      { const l = voiceLine(sim, "whistle", sim.stats.whistles); if (l) setTimeout(() => sim && S.say(sim, l, "talk"), 1800); }
       break;
     }
     case "camp": if (!sim.tutorial || STEPS[sim.tut.step]?.id === "strike" || STEPS[sim.tut.step]?.id === "end") ui.campMenu(sim, campVerbs); break;
@@ -209,6 +211,12 @@ function tap(x, y) {
   }
   if (sim.tutorial && tutorialStep(sim)?.id === "end") return;
   verbAct(t);
+}
+
+function kinAnswers() {
+  const kin = kinAtTheEdge(sim);
+  if (!kin || sim.kinGone?.[kin.key]) return;
+  setTimeout(() => { if (!sim) return; audio.event({ kind: "callanswer", x: kin.x, y: kin.y, voice: kin.voice, call: kin.call, delay: 0 }, sim); S.say(sim, `A call back, from the edge of the firelight:  ${glyphs(kin.call)}`); }, 1400);
 }
 
 function openPad() {
@@ -394,6 +402,12 @@ function frame(now) {
       if (sim.tutorial && tutorialStep(sim)?.id === "learn" && !ui.open && performance.now() > (sim.tut.learnAt || 0)) { sim.tut.learnAt = performance.now() + 4000; campVerbs.learn(); }
       if (sim.wantDawn) { sim.wantDawn = false; dawn(sim); Save.saveRun(sim); if (sim.plan.pending) openPending(); }
       if (sim.plan.pending && !ui.open) openPending();
+      // the voices: unbidden now and then; the rest are answers to what you do
+      voiceClock += dt;
+      if (voiceClock > 22) { voiceClock = 0; const l = voiceLine(sim, "idle", Math.floor(sim.time * 3)); if (l) S.say(sim, l, "talk"); }
+      // the one at the edge of the firelight: walk up to it and it is gone; whistle and it answers, one note off
+      const kin = kinAtTheEdge(sim);
+      if (kin && !sim.kinGone?.[kin.key] && Math.hypot(kin.x - sim.player.x, kin.y - sim.player.y) < 8) (sim.kinGone ||= {})[kin.key] = true;
       // someone says something now and then
       chatClock += dt;
       if (chatClock > 25 && !sim.tutorial) {
@@ -414,6 +428,7 @@ function frame(now) {
     if (!scene) for (const e of sim.events) {
       audio.event(e, sim);
       if (e.kind === "over") finish(sim.over);
+      if (e.kind === "stick" || e.kind === "gchop" || e.kind === "felled") { const l = voiceLine(sim, e.kind === "stick" ? "stick" : "work", Math.floor(sim.time * 20)); if (l) S.say(sim, l, "talk"); }
       // a whistle back is heard, not seen: say where it came from
       if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[S.seenBearing(sim, bearingOf(sim.player, e))]}.`);
       if (e.kind === "callanswer") setTimeout(() => sim && S.say(sim, `A call back, from the ${BEARINGS[S.seenBearing(sim, bearingOf(sim.player, e))]}:  ${glyphs(e.call)}`), (e.delay || 1) * 1000);

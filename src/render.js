@@ -2,7 +2,7 @@
 // World (x, y) metres -> three (x, height, -y). Yaw 0 faces north (-z).
 
 import * as THREE from "../lib/three.module.js";
-import { phantomSticks, phantomWatchers, seesPylonLit, shownFire } from "./percept.js";
+import { phantomSticks, phantomWatchers, seesPylonLit, shownFire, mindLevel, kinAtTheEdge } from "./percept.js";
 import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 import { createIllusions } from "./illusions.js";
@@ -409,6 +409,12 @@ export function createRenderer(canvas) {
         f.userData.body.rotation.x = 0;
         f.position.set(m.x, Math.abs(Math.sin(f.userData.bob)) * 0.06, -m.y);
       }
+      // a mind going: out of your sight they turn to watch you, and look away when you look
+      if (mindLevel(sim) < 0.55 && !sim.tutorial) {
+        const dx = m.x - p.x, dy = m.y - p.y, dd = Math.hypot(dx, dy) || 1;
+        const inView = (dx * Math.sin(p.yaw) + dy * Math.cos(p.yaw)) / dd > 0.55;
+        if (!inView && dd < 30) f.rotation.y = Math.atan2(-(p.x - m.x), -(p.y - m.y));
+      }
       // at the edge of where the lost one is: the real turn their backs; a fake faces in
       if (m.edge) f.rotation.y = Math.atan2(-(m.edge.x - m.x), -(m.edge.y - m.y)) + (m.fake ? 0 : Math.PI);
       seen.add(m.id);
@@ -502,6 +508,12 @@ export function createRenderer(canvas) {
 
     // someone in the trees: drawn like a teammate (a grey one), still and facing you
     // until you come near, then walking off
+    // one of them at the edge of the firelight, who is not there
+    const kin = kinAtTheEdge(sim);
+    if (kin && !sim.kinGone?.[kin.key]) {
+      if (!B.kin || B.kinSlot !== kin.slot) { if (B.kin) scene.remove(B.kin); B.kin = figure(SLOT_COLOURS[kin.slot % SLOT_COLOURS.length], null); B.kinSlot = kin.slot; }
+      B.kin.visible = true; B.kin.position.set(kin.x, 0, -kin.y); B.kin.rotation.y = Math.atan2(-(p.x - kin.x), -(p.y - kin.y));
+    } else if (B.kin) B.kin.visible = false;
     const watchers = phantomWatchers(sim);
     B.watchers ||= [];
     watchers.forEach((w, i) => {

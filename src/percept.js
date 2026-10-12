@@ -4,7 +4,9 @@
 import { account, pickPerturbation } from "./chronicle.js";
 import { nearMiss } from "./names.js";
 import { stream, hash } from "./rng.js";
-import { party, today, byId } from "./sim.js";
+import { party, today, byId, isNight, callFor } from "./sim.js";
+import { mindLevel as _mind } from "./phantom.js";
+import { bendCall } from "./voice.js";
 
 // Names by id, including the missing and the unmade: a fact keeps its actor
 // after they are gone.
@@ -76,7 +78,11 @@ export function verses(sim, k = 0) {
   const used = new Set();
   const FILL = ["the trail went on north", "the wood was wet and the fire took it anyway", "nobody fell behind today", "the trees were closer in the evening"];
   return party(sim).filter((m) => sim.camp.up && !m.sleeping && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14).map((m) => {
-    const all = accountFor(sim, m.id, d).lines.filter((l) => l && l.length > 3 && !used.has(l));
+    // a mind far gone hears one REAL voice a night sing its day wrong (side hash on seed and day)
+    const reals = party(sim).filter((x) => !x.fake);
+    const misheard = _mind(sim) < 0.35 && reals.length && reals[Math.floor(stream(hash("mindverse", sim.seed, d))() * reals.length)] === m;
+    const acc = misheard && sim.chron[d] ? account(sim.chron[d], namer(sim), lieFor(sim, m, d)) : accountFor(sim, m.id, d);
+    const all = acc.lines.filter((l) => l && l.length > 3 && !used.has(l));
     const own = all.filter((l) => l.includes(m.name));
     const pool = own.length ? own : all.length ? all : FILL.filter((l) => !used.has(l));
     const r = stream(hash("verse", sim.seed, m.id, d, k))();
@@ -113,3 +119,40 @@ export const sureWord = (p) => (p >= 0.85 ? "sure" : p >= 0.7 ? "fairly sure" : 
 export { phantomSticks, phantomWatchers, seesPylonLit, shownWood, shownFire, mindLevel } from "./phantom.js";
 
 export const visibleParty = (sim) => party(sim);
+
+/**
+ * Voices. The failing mind hears the team say things they did not say, in their
+ * names: someone asleep, someone too far off to be heard. Mostly they answer
+ * what you just did (Brain mirage#E19: tie it to a verb); sometimes they come
+ * unbidden. Never a number, never a word for the meter.
+ */
+const VOICES = {
+  whistle: ["Not you. Not your whistle.", "Who are you calling for?", "They won't come for that.", "We heard you the first time."],
+  stick: ["That one's not for you.", "Put it back.", "Count them again."],
+  work: ["Slower. They're watching.", "You're doing it wrong and they know.", "Keep your back to the trees."],
+  idle: ["Don't turn around.", "We counted you twice.", "It was you at the tree.", "You're not the one who came back.", "Which of us do you trust?", "Listen to the fire. It's saying your name."],
+};
+export function voiceLine(sim, verb, tick) {
+  const m = _mind(sim);
+  if (sim.tutorial || m >= 0.5) return null;
+  const r = stream(hash("voice", sim.seed, verb, tick));
+  if (r() > (verb === "idle" ? 0.9 : 0.55) * (0.5 - m) * 2.2) return null;
+  // in the name of someone who could not have said it: asleep, or out of earshot
+  const far = party(sim).filter((x) => x.sleeping || Math.hypot(x.x - sim.player.x, x.y - sim.player.y) > 30);
+  const pool = VOICES[verb] || VOICES.idle;
+  const line = pool[Math.floor(r() * pool.length)];
+  const who = far.length ? far[Math.floor(r() * far.length)].name : null;
+  return who ? `${who}: “${line}”` : `Someone says, close to your ear: “${line}”`;
+}
+
+/** At night, at the edge of the firelight, one of them stands who is not there. */
+export function kinAtTheEdge(sim) {
+  if (sim.tutorial || !sim.camp.up || !isNight(sim.time) || _mind(sim) >= 0.45) return null;
+  const night = Math.floor((sim.time - 6) / 24);
+  const r = stream(hash("kin", sim.seed, night));
+  if (r() > 0.6) return null;
+  const ps = party(sim);
+  if (!ps.length) return null;
+  const m = ps[Math.floor(r() * ps.length)], a = r() * Math.PI * 2, d = 13 + r() * 5;
+  return { name: m.name, slot: m.slot, voice: m.voice, call: bendCall(callFor(sim, m), sim.seed, 9000 + night), x: sim.camp.x + Math.cos(a) * d, y: sim.camp.y + Math.sin(a) * d, key: "kin" + night };
+}

@@ -124,6 +124,18 @@ schedule and asks to be fed; feeding spends REAL wood and warms nothing. Others 
 camp tend the real fire, which ends it. Morning snaps shown back to true. No
 number or word for the meter is ever shown.
 
+## The voices, the watching, the one at the edge, the misheard verse
+
+Below the meter's midpoint the mind talks: chat lines in a teammate's name,
+someone asleep or out of earshot, mostly answering what you just did (a whistle,
+a stick, a cut; Brain mirage#E19: tie it to a verb) and now and then unbidden.
+Out of your sight they turn to watch you, and look away when you look. At night
+one of them stands at the edge of the firelight who is not there: whistle and it
+answers in their call one note off; walk up and it is gone for the night. Below
+0.35, one REAL teammate a night is heard singing their verse with a fact bent,
+so your own mind can frame an innocent; the head, the lifelines and other
+nights are how you check it. All derived from side hashes; teammates hear none.
+
 ## Dead ends and the world (`mirage.js`, `illusions.js`)
 
 After the third deadfall, 2-3 spurs leave the trail in the same dirt and end in a
