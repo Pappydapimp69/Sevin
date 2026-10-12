@@ -969,7 +969,9 @@ export function whistle(sim, power = 1) {
     ms.answerAt = sim.time + 0.008 + dist(ms, sim.player) * 0.0001;
   }
   let summonedId = null;
-  if (second && inRange.length) {
+  // after dark nobody leaves the fire for a whistle: they answer, and stay
+  if (second && inRange.length && isNight(sim.time)) say(sim, "They whistle back, but after dark nobody leaves the fire.", "talk");
+  else if (second && inRange.length) {
     const m = inRange.find((x) => x.sanity >= 0.25) || inRange[0];
     m.summonUntil = sim.time + SUMMON_HOURS;
     m.state = "idle"; m.site = null; m.chopId = null;
