@@ -175,7 +175,7 @@ export function snap(sim) {
   const s = p.glows.shift();
   if (!s) return;
   if (s.truth === "glow") {
-    p.glowUntil = sim.time + GLOW_HOURS;
+    p.glowUntil = Math.max(sim.time, p.glowUntil || 0) + GLOW_HOURS;      // a second one burns on after the first
     sim.msgs.push({ t: sim.time, text: "It catches cold and gold, and holds. What is not there keeps back from it.", kind: "good" });
     sim.events.push({ kind: "glowOn" });
   } else reveal(sim, s);
