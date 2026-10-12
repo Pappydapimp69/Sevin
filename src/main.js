@@ -197,16 +197,34 @@ function tap(x, y) {
 
 function doSleep() {
   if (!canSleep(sim)) { S.say(sim, sim.tutorial ? "Not here." : "Not yet. Sleep comes at dusk."); return; }
-  if (sim.camp.up && S.atCamp(sim, sim.player) && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
-  if (!S.atCamp(sim, sim.player)) { ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep()); return; }
-  // the day does not end without a song at the fire: once a night, before the tents
-  if (sim.sangDay !== S.today(sim) && S.party(sim).some((m) => S.atCamp(sim, m))) {
-    S.say(sim, "Before anyone turns in, they sing.", "talk");
-    const wait = campVerbs.sing();
-    setTimeout(() => { if (sim && !scene) goToSleep(); }, wait + 1500);
+  const atFire = sim.camp.up && S.atCamp(sim, sim.player);
+  // Ending the day before ten: the fire first. Talk, then a song, then the watch, then the tents.
+  // After ten there is no song; whoever is still up turns in.
+  if (atFire && S.hourOf(sim.time) < S.EVENING_END && S.hourOf(sim.time) >= S.DUSK - 1 && sim.sangDay !== S.today(sim) && S.party(sim).some((m) => S.atCamp(sim, m) && !m.sleeping)) {
+    campEvening(() => doSleep());
     return;
   }
+  if (atFire && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
+  if (!S.atCamp(sim, sim.player)) { ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep()); return; }
   goToSleep();
+}
+
+// The end of the day at the fire: a little talk, then everyone sings a verse of
+// today. Nobody turns in while it lasts.
+function campEvening(then) {
+  sim.campEvent = true;
+  sim.sangDay = S.today(sim);
+  const ps = S.party(sim).filter((m) => S.atCamp(sim, m) && !m.sleeping);
+  const talk = ps.slice(0, 3).map((m, i) => `${m.name}: “${chatter(sim, m, Math.floor(sim.time * 3) + i)}”`);
+  S.say(sim, "Everyone comes in close to the fire.", "talk");
+  talk.forEach((line, i) => setTimeout(() => sim && S.say(sim, line, "talk"), 1200 + i * 2200));
+  const t0 = 1200 + talk.length * 2200;
+  setTimeout(() => {
+    if (!sim) return;
+    S.say(sim, "Then somebody starts the song.", "talk");
+    const wait = campVerbs.sing();
+    setTimeout(() => { if (!sim) return; sim.campEvent = false; if (!scene) then(); }, wait + 1500);
+  }, t0);
 }
 
 // ---------------------------------------------------------------- the night

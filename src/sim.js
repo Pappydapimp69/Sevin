@@ -1275,10 +1275,20 @@ export function tick(sim, dt, input = {}) {
   let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;
   sim.time += hours;
-  // 22:00: the clock stops. The watch is set, and you sleep.
+  // 22:00: one by one, everyone at camp not on watch turns in, 5 to 45 minutes after
+  // ten (side hash per person and night). Asleep is asleep until morning.
   const hb = hourOf(before);
-  if (!sim.tutorial && hb >= DUSK && hb < EVENING_END && hourOf(sim.time) >= EVENING_END) {
-    sim.time = before - hb + EVENING_END; hours = sim.time - before;
+  if (!sim.tutorial && hb >= DUSK && hb < EVENING_END && hourOf(sim.time) >= EVENING_END && !sim.campEvent) {
+    for (const m of party(sim)) {
+      if (m.watch || m.sleeping || !atCamp(sim, m)) continue;
+      m.bedAt = before - hb + EVENING_END + (5 + stream(hash("bed", sim.seed, m.id, today(sim)))() * 40) / 60;
+    }
+    say(sim, "It is ten. One by one, they turn in.", "info");
+  }
+  for (const m of party(sim)) if (m.bedAt != null && sim.time >= m.bedAt) { m.bedAt = null; m.sleeping = true; m.state = "idle"; }
+  // by eleven you are asleep too: at camp, once the watch is said; anywhere else, where you stand
+  if (!sim.tutorial && hb >= EVENING_END && hb < 23 && hourOf(sim.time) >= 23) {
+    sim.time = before - hb + 23; hours = sim.time - before;
     sim.work = null;
     if (sim.camp.up && atCamp(sim, p) && sim.plan.duskDone !== today(sim)) sim.plan.pending = "dusk";
     else sim.wantSleep = true;

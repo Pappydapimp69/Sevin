@@ -195,7 +195,7 @@ export function sleep(sim) {
   }
   for (const w of watchers) practice(sim, w, "watch");
   // everyone not on watch is asleep until first light
-  for (const m of party(sim)) { m.sleeping = !m.watch; m.called = false; m.summonUntil = null; m.state = "idle"; }
+  for (const m of party(sim)) { m.sleeping = !m.watch; m.bedAt = null; m.called = false; m.summonUntil = null; m.state = "idle"; }
   sim.night = { d, rWeather, rCall, rFalse, rBear, fireHeld, rough, taken: taken ? taken.id : null, woke: false };
   Grove.nightFalls(sim, d);
   // whoever is out there calls, a little after you wake: that is how you know
@@ -236,7 +236,7 @@ export function dawn(sim) {
   sim.chron[nd] = { weather: sim.weather[nd], facts: [] };
   for (const m of party(sim)) {
     // the task they had yesterday is the task they wake to
-    m.watch = false; m.state = "idle"; m.load = 0; m.site = null; m.sleeping = false;
+    m.watch = false; m.state = "idle"; m.load = 0; m.site = null; m.sleeping = false; m.bedAt = null;
     m.called = false;
   }
   const campArea = areaAt(sim, camp.up ? camp.y : p.y);

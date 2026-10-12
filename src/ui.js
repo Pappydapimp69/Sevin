@@ -233,7 +233,7 @@ export function createUI(api) {
     }
     paint();
     show("plan",
-      h("h2", {}, hourOf(sim.time) >= 22 ? `Ten o'clock, day ${today(sim)}` : `Dusk, day ${today(sim)}`), body,
+      h("h2", {}, hourOf(sim.time) >= 22 || hourOf(sim.time) < 6 ? `Late, day ${today(sim)}` : `Dusk, day ${today(sim)}`), body,
       h("div", { class: "row" },
         hourOf(sim.time) >= 22 ? null : btn("Stay up a while", () => { onDone(watch, false); close(); }),
         btn("Sleep", () => { onDone(watch, true); close(); }, "primary")));
