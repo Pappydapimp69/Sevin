@@ -192,8 +192,9 @@ function tap(x, y) {
   // a tap on someone does nothing (Ask is its own button); it reaches what is behind them
   const hit = renderer.pick(x, y, ["member"]);
   if (!hit) return;
-  const kinds = hit.kind === "fire" ? ["light", "feed"] : [hit.kind];
-  const t = S.actionTargets(sim, tolerance()).find((a) => kinds.includes(a.kind) && a.id === hit.id);
+  const kinds = hit.kind === "fire" ? ["snap", "light", "feed"] : [hit.kind];
+  const all = S.actionTargets(sim, tolerance());
+  const t = kinds.map((k) => all.find((a) => a.kind === k && a.id === hit.id)).find(Boolean);
   if (!t) {
     // wood is not offered to full arms: say that, not "too far"
     const full = shownWood(sim) >= S.carryMax(sim);

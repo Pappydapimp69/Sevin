@@ -777,7 +777,8 @@ export function resolveAction(sim, tolerance = 1) {
     const dx = t.x - p.x, dy = t.y - p.y, d = Math.hypot(dx, dy);
     const ang = d < 0.9 || t.area ? 0 : Math.acos(Math.max(-1, Math.min(1, (dx * fx + dy * fy) / d)));
     if (ang > cone) continue;
-    const score = ang * 2 + d * 0.25 + (t.area ? 3 : 0);
+    // at the fire with a glowing branch, waking it comes before feeding
+    const score = ang * 2 + d * 0.25 + (t.area ? 3 : 0) - (t.kind === "snap" ? 1 : 0);
     if (score < bs) { bs = score; best = t; }
   }
   return best;
