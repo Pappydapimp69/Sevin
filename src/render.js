@@ -440,7 +440,7 @@ export function createRenderer(canvas) {
       m.userData.pick = { kind: "stick", id: s.id };
     });
     for (let i = still.length; i < B.phantoms.length; i++) B.phantoms[i].visible = false;
-    woken.forEach((s, i) => {
+    woken.filter((s) => !s.crawl).forEach((s, i) => {
       let sn = B.snakes[i];
       if (!sn) {
         const g = new THREE.Group(), segs = [];
@@ -457,7 +457,36 @@ export function createRenderer(canvas) {
         seg.rotation.set(0, Math.atan2(dy + dx * Math.cos(t * 11 - k * 1.1) * 0.6, dx - dy * Math.cos(t * 11 - k * 1.1) * 0.6), Math.PI / 2);
       });
     });
-    for (let i = woken.length; i < B.snakes.length; i++) B.snakes[i].g.visible = false;
+    for (let i = woken.filter((s) => !s.crawl).length; i < B.snakes.length; i++) B.snakes[i].g.visible = false;
+    // the one with legs: a stick that walks, many-legged, straight at you
+    const crawlers = woken.filter((s) => s.crawl);
+    B.crawlers ||= [];
+    crawlers.forEach((s, i) => {
+      let c = B.crawlers[i];
+      if (!c) {
+        const g = new THREE.Group(), segs = [], legs = [];
+        const legMat = new THREE.MeshLambertMaterial({ color: 0x3a2a1a });
+        for (let k = 0; k < 8; k++) {
+          const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.2, 6), B.stickMat); seg.rotation.z = Math.PI / 2; g.add(seg); segs.push(seg);
+          for (const side of [-1, 1]) { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.008, 0.34, 4), legMat); g.add(l); legs.push({ l, k, side }); }
+        }
+        scene.add(g); c = { g, segs, legs }; B.crawlers[i] = c;
+      }
+      c.g.visible = true;
+      const dx = Math.cos(s.ang), dy = Math.sin(s.ang), t = s.t;
+      c.segs.forEach((seg, k) => {
+        const back = k * 0.19, w = Math.sin(t * 9 - k * 0.8) * 0.05;
+        seg.position.set(s.x - dx * back - dy * w, 0.12, -(s.y - dy * back + dx * w));
+        seg.rotation.set(0, Math.atan2(dy, dx), Math.PI / 2);
+      });
+      c.legs.forEach(({ l, k, side }) => {
+        const back = k * 0.19, ph = Math.sin(t * 26 + k * 1.3 + (side > 0 ? Math.PI : 0));
+        const bx = s.x - dx * back, by = s.y - dy * back;
+        l.position.set(bx - dy * side * 0.17, 0.08 + Math.max(0, ph) * 0.04, -(by + dx * side * 0.17));
+        l.rotation.set(side * 0.9 + ph * 0.3, -Math.atan2(dy, dx), ph * 0.4);
+      });
+    });
+    for (let i = crawlers.length; i < B.crawlers.length; i++) B.crawlers[i].g.visible = false;
 
     // someone in the trees: drawn like a teammate (a grey one), still and facing you
     // until you come near, then walking off

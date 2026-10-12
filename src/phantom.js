@@ -10,12 +10,12 @@
 // no number or word for the meter is ever shown.
 
 import { stream, hash } from "./rng.js";
-import { canStand, hourOf, today, SEC_PER_HOUR } from "./sim.js";
+import { canStand, hourOf, today, SEC_PER_HOUR, secPerHour } from "./sim.js";
 import { inGlow } from "./grove.js";
 
 export const STICK_MIND = 0.75;      // below this the ground starts offering things
 export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to burn
-export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {} });
+export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {}, crawl: {} });
 
 // What the mind is making up, right now. The fruit puts its own meter in place
 // of yours (superficial: yours is untouched). A lit branch holds it off only
@@ -30,7 +30,12 @@ export const mindLevel = mind;
 // cells. Some of them are not sticks. When you come close the thing wakes and
 // slithers away through the leaves.
 const CELL_M = 5, SHOW_M = 15, SNAKE_M = 4, SLITHER_S = 5.5;
-const kindOf = (sim, id) => (stream(hash("kind", sim.seed, id))() < 0.02 ? "snake" : "stick");   // rare: 2%
+// rare: 2% snakes; from the third day, 2% more grow legs and come for you
+const kindOf = (sim, id) => {
+  const r = stream(hash("kind", sim.seed, id))();
+  return r < 0.02 ? "snake" : r < 0.04 && today(sim) >= 3 ? "crawler" : "stick";
+};
+const CRAWL_SPEED = 3.3, CRAWL_S = 14;
 
 /** The slither's head at `e` seconds, and how far it has sunk back into the ground. */
 function slitherAt(sl, e) {
@@ -49,6 +54,7 @@ export function phantomSticks(sim) {
   const out = [];
   const sl = ph.slither || {};
   for (const [id, v] of Object.entries(sl)) out.push({ id, slither: true, kind: "snake", ...slitherAt(v, (sim.time - v.t0) * SEC_PER_HOUR) });
+  for (const [id, v] of Object.entries(ph.crawl || {})) out.push({ id, slither: true, crawl: true, kind: "crawler", x: v.x, y: v.y, ang: v.ang, t: v.t || 0, sink: 0 });
   if (m >= STICK_MIND) return out;
   const density = Math.min(0.5, 0.12 + (STICK_MIND - m) * 0.9);
   const day = today(sim);
@@ -59,7 +65,7 @@ export function phantomSticks(sim) {
     const has = r(), x = cx * CELL_M + r() * CELL_M, y = cy * CELL_M + r() * CELL_M, rot = r() * 6.28;
     if (has >= density) continue;
     const id = `p${day}:${cx}:${cy}`;
-    if (ph.taken.includes(id) || sl[id] || !canStand(sim, x, y) || inGlow(sim, x, y)) continue;
+    if (ph.taken.includes(id) || sl[id] || ph.crawl?.[id] || !canStand(sim, x, y) || inGlow(sim, x, y)) continue;
     out.push({ id, x, y, rot, kind: kindOf(sim, id) });
   }
   return out;
@@ -114,6 +120,24 @@ export function tickPhantom(sim, hours) {
   }
   for (const [id, v] of Object.entries(ph.slither)) {
     if ((sim.time - v.t0) * SEC_PER_HOUR > SLITHER_S) { delete ph.slither[id]; ph.taken.push(id); }
+  }
+  // a "stick" that grows legs: it comes for you, and is gone the moment you look away
+  ph.crawl ||= {};
+  const p = sim.player, fx = Math.sin(p.yaw), fy = Math.cos(p.yaw);
+  for (const s of phantomSticks(sim)) {
+    if (s.slither || s.kind !== "crawler" || Math.hypot(s.x - p.x, s.y - p.y) > SNAKE_M) continue;
+    ph.crawl[s.id] = { x: s.x, y: s.y, ang: Math.atan2(p.y - s.y, p.x - s.x), t: 0 };
+    sim.events.push({ kind: "crawl" });
+  }
+  const secs = hours * secPerHour(sim.time);
+  for (const [id, v] of Object.entries(ph.crawl)) {
+    v.t += secs;
+    const dx = p.x - v.x, dy = p.y - v.y, d = Math.hypot(dx, dy) || 1;
+    const seen = (-(dx * fx + dy * fy)) / d > 0.35;            // it is in front of you
+    if ((!seen && v.t > 0.4) || d < 0.8 || v.t > CRAWL_S) { delete ph.crawl[id]; ph.taken.push(id); continue; }
+    v.ang = Math.atan2(dy, dx);
+    const step = Math.min(d - 0.6, CRAWL_SPEED * secs);
+    v.x += (dx / d) * step; v.y += (dy / d) * step;
   }
   if (ph.fire > 0) ph.fire = Math.max(0, ph.fire - hours);
   if (sim.camp.lit) ph.fire = 0;            // a real fire is lit: nothing false to show

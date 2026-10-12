@@ -147,6 +147,13 @@ export function createAudio() {
         setTimeout(() => whistleTone(pan, Math.max(0.04, 0.16 * (1 - d / 80)), callNotes(e.voice, e.call)), (e.delay || 1) * 1000);
         break;
       }
+      case "crawl": {
+        // joints cracking, wet and dry, a hundred small ones and a few big ones
+        for (let i = 0; i < 40; i++) setTimeout(() => burst({ freq: 900 + Math.random() * 4500, q: 6, dur: 0.015 + Math.random() * 0.03, gain: 0.12 + Math.random() * 0.25, pan: Math.random() * 1.4 - 0.7 }), Math.random() * 1400);
+        for (let i = 0; i < 5; i++) setTimeout(() => burst({ freq: 180 + Math.random() * 200, q: 3, dur: 0.12, gain: 0.5, type: "lowpass" }), 100 + Math.random() * 1200);
+        tone(70, 1.6, 0.12, 0, -25, "sawtooth");
+        break;
+      }
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }
@@ -184,6 +191,9 @@ export function createAudio() {
       const pan = Math.random() < 0.5 ? -0.8 : 0.8;
       for (let i = 0; i < 6; i++) setTimeout(() => burst({ freq: 2600 + Math.random() * 1800, q: 4, dur: 0.18, gain: 0.05, pan }), i * 150 + Math.random() * 80);
     }
+
+    // while one is coming: legs on leaves, joints clicking
+    if (sim.phantom?.crawl && Object.keys(sim.phantom.crawl).length && Math.random() < dt * 22) burst({ freq: 1500 + Math.random() * 3500, q: 5, dur: 0.02, gain: 0.14 + Math.random() * 0.12 });
 
     chopClock -= dt;
     if (sim.work?.kind === "chop" && chopClock <= 0) { chopClock = 0.55; burst({ freq: 220, dur: 0.12, gain: 0.5, q: 2 }); burst({ freq: 1400, dur: 0.04, gain: 0.2 }); }
