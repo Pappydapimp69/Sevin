@@ -570,7 +570,7 @@ export function practice(sim, m, k) {
 // A deadfall takes `work` person-hours unskilled; cut skill makes an hour count
 // for more, as a percentage, so it never floors at zero.
 export function chopRate(who) {
-  return 1 + 0.18 * skill(who, "cut");
+  return (1 + 0.18 * skill(who, "cut")) / 2;      // halved: a deadfall takes twice as long
 }
 
 function chopAt(sim, i, who, hours) {
