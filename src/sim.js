@@ -57,6 +57,9 @@ export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather:
 export const tasksNow = (sim) => TASKS.filter((t) => (t === "camp" ? sim.camp.up : t === "pitch" ? !sim.camp.up && !!sim.pitch : true));
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
+// Building is the sum of the hands on it: you alone add little; each teammate adds
+// a little for their hands and more for every level of Building.
+export const buildRate = (who) => (who === "you" ? 0.25 : 0.25 + 0.25 * (who.skills.build || 0));
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
 // pieces out of it. Carrying makes a bigger haul likelier, never certain.
 // The roll is a side hash (who, which chop), not the run stream.
@@ -512,7 +515,7 @@ function tickMember(sim, m, dt, hours) {
       const spot = { x: P.x + Math.cos(m.slot * 1.3) * 2.5, y: P.y + Math.sin(m.slot * 1.3) * 2.5 };
       if (steer(sim, m, spot.x, spot.y, speedOf(m), dt, 0.8)) {
         m.workT = sim.time;
-        P.left -= hours * (1 + 0.15 * m.skills.build);
+        P.left -= hours * buildRate(m);
         if (!P.hands.includes(m.id)) P.hands.push(m.id);
         if (P.left <= 0) pitchDone(sim);
       }
@@ -579,7 +582,7 @@ function helpWork(sim, m, hours) {
   if (w.kind === "chop") chopAt(sim, w.id, m, hours);
   else if (w.kind === "make" && sim.pitch) {
     if (dist(m, sim.pitch) > 7) return;
-    sim.pitch.left -= hours * (1 + 0.15 * m.skills.build);
+    sim.pitch.left -= hours * buildRate(m);
     sim.pitch.hands.includes(m.id) || sim.pitch.hands.push(m.id);
     m.workT = sim.time;
     if (sim.pitch.left <= 0) pitchDone(sim);
@@ -609,7 +612,7 @@ function tickWork(sim, hours, dt) {
     // your hands on the camp going up; step away and it waits, half made
     const P = sim.pitch;
     if (!P || sim.camp.up || dist(sim.player, P) > 6) { sim.work = null; return; }
-    P.left -= hours;
+    P.left -= hours * buildRate("you");
     P.hands.includes("you") || P.hands.unshift("you");
     if (P.left <= 0) pitchDone(sim);
   } else if (w.kind === "strike") {
