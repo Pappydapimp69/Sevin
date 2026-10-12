@@ -6,12 +6,14 @@ import { stream, hash } from "./rng.js";
 
 const SKIN = 0xd8b89a;
 
-export function createGroveView(THREE, scene, camera) {
+export function createGroveView(THREE, scene, camera, picks = [], HIDDEN = null) {
+  // generous invisible hit volumes, so a finger can tap the tree and what falls from it
+  const hitbox = (r, hgt, pick, owner) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, hgt, 8), HIDDEN || new THREE.MeshBasicMaterial({ visible: false })); m.position.y = hgt / 2; m.userData.pick = pick; m.userData.owner = owner; owner.add(m); picks.push(m); return m; };
   const lam = (c, e = 0) => new THREE.MeshLambertMaterial({ color: c, emissive: e });
   let tree = null, treeLook = -1;
 
   function buildTree(sim, look) {
-    if (tree) scene.remove(tree.g);
+    if (tree) { scene.remove(tree.g); if (tree.hit) picks.splice(picks.indexOf(tree.hit), 1); }
     const r = stream(hash("glook", sim.seed, look));
     const hgt = 4 + r() * 3, lean = (r() - 0.5) * 0.25, crownR = 1.6 + r() * 1.2;
     const hue = 0.11 + r() * 0.05, glowCol = new THREE.Color().setHSL(hue, 0.8, 0.6);
@@ -47,7 +49,8 @@ export function createGroveView(THREE, scene, camera) {
     armL.rotation.z = 0.25; armR.rotation.z = -0.25;
     for (const s of [treeShadow, personShadow]) { s.position.y = 0.03; s.visible = false; }
     scene.add(g, treeShadow, personShadow);
-    tree = { g, canopy, branches, fruit, light, treeShadow, personShadow, armL, armR, hgt };
+    const hit = hitbox(1.2, hgt + 2, { kind: "gchop", id: 0 }, g);
+    tree = { hit, g, canopy, branches, fruit, light, treeShadow, personShadow, armL, armR, hgt };
   }
 
   // things on the ground and in camp
@@ -70,9 +73,13 @@ export function createGroveView(THREE, scene, camera) {
     scene.add(g);
     return g;
   }
-  function item(key, kind) {
+  function item(key, kind, pick) {
     let it = pool.get(key);
-    if (!it || it.userData.kind !== kind) { if (it) scene.remove(it); it = itemMesh(kind); it.userData.kind = kind; pool.set(key, it); }
+    if (!it || it.userData.kind !== kind) {
+      if (it) { scene.remove(it); const hb = it.userData.hit; if (hb) picks.splice(picks.indexOf(hb), 1); }
+      it = itemMesh(kind); it.userData.kind = kind; pool.set(key, it);
+      if (pick) it.userData.hit = hitbox(0.8, 0.9, pick, it);
+    }
     it.userData.seen = true;
     return it;
   }
@@ -108,7 +115,7 @@ export function createGroveView(THREE, scene, camera) {
 
     for (const it of sim.gdrops || []) {
       if (it.taken) continue;
-      const m = item("d" + it.id, it.shown); m.position.set(it.x, 0, -it.y); m.rotation.y = it.id * 1.7;
+      const m = item("d" + it.id, it.shown, { kind: "gpick", id: it.id }); m.position.set(it.x, 0, -it.y); m.rotation.y = it.id * 1.7;
     }
     (sim.remains || []).forEach((r, i) => { const m = item("r" + i + r.truth, r.truth); m.position.set(r.x, 0, -r.y); });
     (sim.bodies || []).forEach((b, i) => { const m = item("b" + i, "body"); m.position.set(b.x, 0, -b.y); });

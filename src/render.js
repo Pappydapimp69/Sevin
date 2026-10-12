@@ -111,7 +111,7 @@ export function createRenderer(canvas) {
     for (const c of world.clearings) scene.add(landmark(c, world));
     B.ill = createIllusions(THREE, scene, B, world, camera);
     B.ill.setCalm(calmPref);
-    B.grove = createGroveView(THREE, scene, camera);
+    B.grove = createGroveView(THREE, scene, camera, B.picks, HIDDEN);
 
     // deadfalls
     B.deadfalls = world.deadfalls.map((df) => {
