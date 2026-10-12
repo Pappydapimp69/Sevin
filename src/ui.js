@@ -48,9 +48,37 @@ export function createUI(api) {
     modal.hidden = false;
     api.paused(true);
     api.setMenu(menu);
-    const first = modal.querySelector("button.primary:not(:disabled)") || focusables()[0];
-    first?.focus({ preventScroll: true });
+    // a menu opened again keeps its place: the pad does not jump back to the top
+    if (!restoreFocus(name)) {
+      const first = modal.querySelector("button.primary:not(:disabled)") || focusables()[0];
+      first?.focus({ preventScroll: true });
+    }
   }
+
+  // Where the selection was, per menu: its label (and which of that label it
+  // was) and its place in the list. A choice that repaints the menu, or a menu
+  // shown again, puts it back there rather than at the top.
+  const place = {};
+  const labelOf = (el) => (el.tagName === "BUTTON" ? el.textContent : el.tagName + ":" + (el.dataset.id || el.name || ""));
+  modal.addEventListener("focusin", (e) => {
+    if (!open) return;
+    const all = focusables(), lab = labelOf(e.target);
+    place[open] = { lab, nth: all.filter((x) => labelOf(x) === lab).indexOf(e.target), idx: all.indexOf(e.target) };
+  });
+  function restoreFocus(name) {
+    const k = place[name];
+    if (!k) return false;
+    const all = focusables();
+    if (!all.length) return false;
+    const same = all.filter((x) => labelOf(x) === k.lab);
+    const el = same[k.nth] || same[0] || all[Math.min(k.idx, all.length - 1)];
+    el.focus({ preventScroll: true });
+    return true;
+  }
+  // a choice that rebuilds part of the menu takes focus with it: put it back
+  new MutationObserver(() => {
+    if (open && !modal.contains(document.activeElement)) restoreFocus(open);
+  }).observe(modal, { childList: true, subtree: true });
   function close() {
     open = null;
     onCancel = null;
