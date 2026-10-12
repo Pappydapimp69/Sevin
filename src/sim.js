@@ -41,7 +41,7 @@ export const CAMP_R = 12;            // metres: the campsite, and the fire's shi
 export const REACH = 3;              // metres: hands' reach
 export const HEAR = 25;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
-export const TASKS = ["auto", "follow", "chop", "gather", "camp"];
+export const TASKS = ["auto", "follow", "chop", "gather", "camp", "pitch"];
 export const CARRY_MAX = 5;           // wood you can carry with a camp up
 export const CARRY_NO_CAMP = 10;      // with no camp, you carry the build wood
 // what a teammate can carry: one piece for every two points of Carrying, at least one
@@ -53,7 +53,8 @@ export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather:
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.
 // A camp you have taken down is yours to put up again: the team only ever makes the first.
-export const tasksNow = (sim) => TASKS.filter((t) => sim.camp.up || t !== "camp");
+// making camp is a task only while one you started is half made
+export const tasksNow = (sim) => TASKS.filter((t) => (t === "camp" ? sim.camp.up : t === "pitch" ? !sim.camp.up && !!sim.pitch : true));
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
@@ -146,7 +147,7 @@ export function attach(sim, world) {
   sim.mirage ||= {};
   Grove.ensure(sim);
   sim.lifelines ||= { team: true, one: true, both: true };
-  for (const m of sim.members) if (m.task === "pitch") m.task = "auto";       // only you make camp now
+  for (const m of sim.members) if (m.task === "pitch" && !sim.pitch) m.task = "auto";
   sim.piles ||= [];                      // woodpiles left behind where a camp stood
   if (sim.site === undefined) sim.site = null;   // where you said the camp goes: the drop zone
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
@@ -1124,6 +1125,8 @@ export function autoScores(sim, m) {
   const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
   const s = {};
   // before there is a camp, its wood is the first thing anyone needs
+  // a camp you started and left half made: the good builders carry on with it
+  if (sim.pitch && !sim.camp.up && m.skills.build >= 2) s.pitch = 9 + m.skills.build - others("pitch") * 2;
   s.gather = (sim.camp.up
     ? Math.max(0, 7 - sim.camp.pile) + m.skills.carry * 0.5 - others("gather") * 1.5
     : Math.max(1, CAMP_WOOD + 2 - sim.camp.pile) * 1.5 + m.skills.carry * 0.5 - others("gather") * 0.4)
