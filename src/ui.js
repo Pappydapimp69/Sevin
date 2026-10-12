@@ -256,12 +256,15 @@ export function createUI(api) {
           btn(`B · ${name}`, () => final(B), "answer")),
         h("p", { class: "small" }, "Lifelines, once each for the whole walk:"),
         h("div", { class: "row wrap" },
-          btn("Ask the team", () => { ll.team = false; poll(); paint(); }, ll.team && others.length ? "" : "disabled"),
-          btn("Ask one of them", () => { ll.one = false; pickOne(); }, ll.one && others.length ? "" : "disabled"),
-          btn("Ask both about a day", () => { ll.both = false; pickDay(); }, ll.both ? "" : "disabled")),
+          life("Ask the team", ll.team && others.length, () => { ll.team = false; poll(); paint(); }),
+          life("Ask one of them", ll.one && others.length, () => { ll.one = false; pickOne(); }),
+          life("Ask both about a day", ll.both, () => { ll.both = false; pickDay(); })),
         out,
       );
     }
+    // a spent lifeline stays in the row and keeps focus (greyed, does nothing), so
+    // the pad stays where it was instead of jumping to an answer
+    const life = (label, ok, fn) => { const b = btn(label, () => { if (ok) fn(); }, ok ? "" : "spent"); if (!ok) b.setAttribute("aria-disabled", "true"); return b; };
     function poll() {
       const votes = others.map((m) => voteOf(sim, m, A, B));
       const a = votes.filter((v) => v.pick === A.id).length, n = votes.length;

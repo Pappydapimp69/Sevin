@@ -130,3 +130,4 @@ button.teamcard.sel, button.teamcard.sel:hover:not(:disabled), button.teamcard.s
 .poll .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(201,164,90,.45); }
 .twocol { justify-content: flex-start; align-items: flex-start; }
 .twocol .col { flex: 1 1 45%; }
+.panel button.spent { opacity: .4; }
