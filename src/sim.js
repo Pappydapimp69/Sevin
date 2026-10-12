@@ -47,6 +47,7 @@ export const CARRY_NO_CAMP = 10;      // with no camp, you carry the build wood
 // what a teammate can carry: one piece for every two points of Carrying, at least one
 export const memberCarry = (m) => Math.max(1, Math.floor((m.skills?.carry || 0) / 2));
 export const carryMax = (sim) => (sim.camp.up ? CARRY_MAX : CARRY_NO_CAMP);
+export const GLOW_MAX = 4;            // glowing branches you can carry, apart from wood
 export const HAUL_CHANCE = 0.8;       // a gatherer hauls an old pile to the new camp this often
 export const CAMP_WOOD = 10;          // a camp is made from the team's wood
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
@@ -666,8 +667,10 @@ export function actionTargets(sim, tolerance = 1) {
   const R = (r) => r * tolerance;
   const ge = sim.grove?.enc;
   if (ge && Grove.treeUp(sim) && dist(ge, p) < R(REACH + 1.2)) out.push({ kind: "gchop", id: 0, x: ge.x, y: ge.y, h: 2.2, label: "Chop the glowing tree" });
+  // full arms: no wood offered. Glowing branches go in their own bundle (4 at most); the fruit always
+  const armsFull = Phantom.shownWood(sim) >= carryMax(sim);
   for (const it of sim.gdrops || [])
-    if (!it.taken && dist(it, p) < R(2.6) && (it.shown === "fruit" || it.shown === "branch" || it.shown === "stick"))
+    if (!it.taken && dist(it, p) < R(2.6) && (it.shown === "fruit" || (it.shown === "branch" && (p.glows?.length || 0) < GLOW_MAX) || (it.shown === "stick" && !armsFull)))
       out.push({ kind: "gpick", id: it.id, x: it.x, y: it.y, h: 0.5, label: it.shown === "fruit" ? "Pick it up (both hands)" : it.shown === "branch" ? "Pick up the glowing branch" : "Pick up wood" });
   for (const ms of sim.missing)
     if (Grove.personOut(sim, ms) && dist(ms, p) < R(REACH)) out.push({ kind: "rescue", id: ms.id, x: ms.x, y: ms.y, h: 1.9, label: "Bring " + ms.name + " home" });
@@ -682,10 +685,10 @@ export function actionTargets(sim, tolerance = 1) {
     if (Math.abs(x - p.x) < R(2.5) && Math.abs(df.y - p.y) < R(3.5))
       out.push({ kind: "chop", id: i, x, y: df.y, h: 1.6, label: sim.work?.kind === "chop" ? "Stop chopping" : "Chop" });
   }
-  for (let i = 0; i < W.sticks.length; i++)
+  if (!armsFull) for (let i = 0; i < W.sticks.length; i++)
     if (!sim.sticks[i] && dist(W.sticks[i], p) < R(2.6)) out.push({ kind: "stick", id: i, x: W.sticks[i].x, y: W.sticks[i].y, h: 0.6, label: "Pick up wood" });
   // a failing mind: sticks that are not there, and a dead fire that seems to burn
-  for (const ps of Phantom.phantomSticks(sim))
+  if (!armsFull) for (const ps of Phantom.phantomSticks(sim))
     if (!ps.slither && dist(ps, p) < R(2.6)) out.push({ kind: "stick", id: ps.id, x: ps.x, y: ps.y, h: 0.6, label: "Pick up wood", phantom: true });
   if (sim.camp.up && !sim.keystone.active && dist(sim.camp, p) < R(REACH)) {
     const pile = sim.camp.pile > 0 ? "" : " (no wood in the pile)";
