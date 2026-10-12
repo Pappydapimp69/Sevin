@@ -59,7 +59,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
         now.add(i);
       }
     }
-    for (const i of bent.keys()) if (!now.has(i)) placeTree(i, 0, NOQ);
+    for (const i of bent.keys()) if (!now.has(i) && !sim.felled?.includes(i)) placeTree(i, 0, NOQ);   // a stump stays a stump
     bent.clear(); for (const i of now) bent.set(i, true);
     if (now.size || bent.size) { B.trunkInst.instanceMatrix.needsUpdate = true; for (const c of B.crowns) c.instanceMatrix.needsUpdate = true; }
   }
