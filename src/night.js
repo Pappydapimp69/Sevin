@@ -6,8 +6,9 @@
 
 import {
   seenBearing, burnRate, burnHours, practice, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
-  areaAt, shielded, canStand, reachable, note, say, DRAIN,
+  areaAt, shielded, canStand, reachable, note, say, DRAIN, WAKE, inSmallHours,
 } from "./sim.js";
+import * as Grove from "./grove.js";
 import { WEATHERS } from "./chronicle.js";
 import { CELL, AREA_H, center } from "./world.js";
 import { bendVoice } from "./voice.js";
@@ -86,12 +87,6 @@ export function canSleep(sim) {
   return !sim.tutorial && !sim.over && !sim.plan.pending && (isNight(sim.time) || hourOf(sim.time) >= DUSK - 1);
 }
 
-/** Hours from now to the next dawn. */
-function hoursToDawn(t) {
-  const h = hourOf(t);
-  return h < DAWN ? DAWN - h : 24 - h + DAWN;
-}
-
 // Where the taken one ends up: out from camp, on open ground, in the same area,
 // somewhere you can walk to.
 function placeMissing(sim, from, ang, d01) {
@@ -110,24 +105,15 @@ function placeMissing(sim, from, ang, d01) {
   return { x: c.x, y: c.y, area };
 }
 
-export function sleep(sim) {
-  if (!canSleep(sim)) return null;
-  const p = sim.player;
-  const hours = hoursToDawn(sim.time);
-  const camp = sim.camp;
-  const rough = !atCamp(sim, p);
-  const D = Array.from({ length: NIGHT_DRAWS }, () => draw(sim));
-  let di = 0;
-  const rTake = D[di++], rWho = D[di++];
-  const slotDraws = [];
-  for (let s = 0; s < MAX_SLOTS; s++) slotDraws.push([D[di++], D[di++]]);
-  const rWeather = D[di++], rCall = D[di++], rFalse = D[di++], rBear = D[di++];
-
-  // --- the fire: what is in it, plus what a watch feeds it from the pile -----
+/**
+ * Fire and the hidden meter across `hours` asleep. Draws nothing. The watch
+ * feeds the fire from the pile; the best hand among them makes it last.
+ */
+function passNight(sim, hours) {
+  const p = sim.player, camp = sim.camp;
   let fuel = camp.up && camp.lit ? camp.fire : 0;
   const watchers = party(sim).filter((m) => m.watch && atCamp(sim, m));
   if (camp.up && camp.lit && watchers.length && fuel < hours * burnRate(sim)) {
-    // the best hand at a fire among the watch makes the pile last longest
     const per = Math.max(...watchers.map((w) => burnHours(w)));
     const need = Math.ceil((hours * burnRate(sim) - fuel) / per), use = Math.min(need, camp.pile);
     camp.pile -= use; fuel += use * per;
@@ -136,10 +122,7 @@ export function sleep(sim) {
   const fireHeld = camp.up && fuel >= burn;
   const fireHours = Math.min(fuel / burnRate(sim), hours);
   if (camp.up) { camp.fire = fuel - burn > 1e-6 ? fuel - burn : 0; camp.lit = camp.fire > 0; }   // a fire with no fuel is out, not lit
-
-  // --- the hidden meter, across the night -----------------------------------
-  const bodies = [p, ...party(sim)];
-  for (const b of bodies) {
+  for (const b of [p, ...party(sim)]) {
     if (b.fake) continue;
     const area = areaAt(sim, b.y);
     const depth = shielded(sim, area) ? 1 : 1 + area * 0.6;
@@ -148,15 +131,45 @@ export function sleep(sim) {
     const loss = DRAIN * depth * (covered * 0.6 + (hours - covered) * (inside ? 1.6 : 2.6));
     b.sanity = Math.max(0, b.sanity - loss);
   }
+  sim.time += hours;
+  return { fireHeld, watchers };
+}
+
+/** Hours from now to the next two o'clock. */
+function hoursToWake(t) {
+  const h = hourOf(t);
+  return h < WAKE ? WAKE - h : 24 - h + WAKE;
+}
+
+/**
+ * Sleep. From the evening: the whole night is drawn here, once (constant roll
+ * count), the take happens, and you wake at two. From the small hours: you
+ * sleep through to dawn.
+ */
+export function sleep(sim) {
+  if (!canSleep(sim)) return null;
+  if (inSmallHours(sim.time)) {
+    passNight(sim, DAWN - hourOf(sim.time));
+    return dawn(sim);
+  }
+  const p = sim.player, camp = sim.camp;
+  const rough = !atCamp(sim, p);
+  const d = today(sim);
+  const D = Array.from({ length: NIGHT_DRAWS }, () => draw(sim));
+  let di = 0;
+  const rTake = D[di++], rWho = D[di++];
+  const slotDraws = [];
+  for (let s = 0; s < MAX_SLOTS; s++) slotDraws.push([D[di++], D[di++]]);
+  const rWeather = D[di++], rCall = D[di++], rFalse = D[di++], rBear = D[di++];
+
+  const hours = hoursToWake(sim.time);
+  const { fireHeld, watchers } = passNight(sim, hours);
+  sim.time = WAKE + 24 * d;                    // exact: two in the morning, still the same day's night
 
   // --- who the night takes ----------------------------------------------------
-  const d = today(sim);
   const reals = real(sim);
   const fakesHeld = party(sim).filter((m) => m.fake).length;
   const area = areaAt(sim, camp.up ? camp.y : p.y);
-  // Watchfulness: those sitting up at the fire, awake and looking, make the
-  // night less likely to take anyone (3% a level, to a limit of 18%). Skill 0
-  // sits up and does no good, as before.
   const watchSkill = watchers.reduce((s, m) => s + m.skills.watch, 0);
   const pressure =
     0.22 + (shielded(sim, area) ? 0 : 0.07 * area) + (fireHeld && !rough ? 0 : 0.25) + 0.08 * fakesHeld +
@@ -171,68 +184,78 @@ export function sleep(sim) {
     for (let i = 0; i < reals.length; i++) { x -= weights[i]; if (x < 0) { taken = reals[i]; break; } }
     taken ||= reals[reals.length - 1];
   }
-
   for (const ms of sim.missing) {
     if (ms.found || ms.lost) continue;
     ms.nights++;
     ms.sanity = Math.max(0, ms.sanity - 0.08);
   }
-
   if (taken) {
     const [ang01, d01] = slotDraws[taken.slot % MAX_SLOTS];
     swapOut(sim, taken, ang01, d01, d);
   }
-
-  // morning: what you saw snaps back to what was true
-  reconcile(sim);
-
-  // the night's watch learns from it
   for (const w of watchers) practice(sim, w, "watch");
+  // everyone not on watch is asleep until first light
+  for (const m of party(sim)) { m.sleeping = !m.watch; m.called = false; m.summonUntil = null; m.state = "idle"; }
+  sim.night = { d, rWeather, rCall, rFalse, rBear, fireHeld, rough, taken: taken ? taken.id : null, woke: false };
+  Grove.nightFalls(sim, d);
+  // whoever is out there calls, a little after you wake: that is how you know
+  let k = 0;
+  for (const ms of sim.missing) if (!ms.found && !ms.lost) ms.answerAt = sim.time + 0.012 + 0.01 * k++;
 
-  // --- dawn -------------------------------------------------------------------
-  // Dawn is an exact time. Adding hours to a float can land a hair short of it,
-  // which would make "tomorrow" today and overwrite today's record.
+  sim.asleep = false;
+  sim.wantSleep = false;
+  say(sim, "You wake. It is two in the morning, and dark.", "warn");
+  sim.events.push({ kind: "wake", day: d });
+  return { hours, fireHeld, rough, taken: taken ? taken.id : null, woke: true };
+}
+
+/** First light: the day turns over. Uses the draws the night already made. */
+export function dawn(sim) {
+  const p = sim.player, camp = sim.camp;
+  const n = sim.night || (() => {               // a save from before the two o'clock wake
+    const r = stream(hash("dawn", sim.seed, today(sim)));
+    return { d: today(sim), rWeather: r(), rCall: r(), rFalse: r(), rBear: r(), fireHeld: camp.lit, rough: !atCamp(sim, p) };
+  })();
+  const d = n.d;
+  reconcile(sim);                              // morning: what you saw snaps back to what was true
+  Grove.morning(sim);
   sim.time = DAWN + 24 * d;
   const nd = today(sim);
   if (nd !== d + 1 || sim.chron[nd]) throw new Error("night: dawn did not advance the day");
-  sim.weather[nd] = WEATHERS[Math.floor(rWeather * WEATHERS.length)];
+  sim.weather[nd] = WEATHERS[Math.floor(n.rWeather * WEATHERS.length)];
   sim.chron[nd] = { weather: sim.weather[nd], facts: [] };
   for (const m of party(sim)) {
     // the task they had yesterday is the task they wake to
-    m.watch = false; m.state = "idle"; m.load = 0; m.site = null;
-    m.called = false;                         // a new day: back to their own work
+    m.watch = false; m.state = "idle"; m.load = 0; m.site = null; m.sleeping = false;
+    m.called = false;
   }
-
-  // Lost: the camp has moved two areas past them.
   const campArea = areaAt(sim, camp.up ? camp.y : p.y);
   for (const ms of sim.missing) if (!ms.found && campArea > ms.area + 1) ms.lost = true;
 
-  // The call. It comes from the missing one's real bearing, fades with nights
-  // out (with a floor), and false calls happen too, so a call is not an
-  // announcement. A bearing that holds across dawns is the tell.
+  // The call: from the missing one's real bearing, fading with nights out (with
+  // a floor); false calls happen too.
   const out = sim.missing.filter((ms) => !ms.found && !ms.lost);
   const heardFrom = camp.up ? camp : p;
   let bearing = null;
   if (out.length) {
     const ms = out[0];
-    if (rCall < Math.max(0.35, 0.95 - 0.15 * (ms.nights - 1))) bearing = bearingOf(heardFrom, ms);
+    if (n.rCall < Math.max(0.35, 0.95 - 0.15 * (ms.nights - 1))) bearing = bearingOf(heardFrom, ms);
   }
-  if (bearing == null && rFalse < 0.22) bearing = Math.floor(rBear * 8);
+  if (bearing == null && n.rFalse < 0.22) bearing = Math.floor(n.rBear * 8);
   sim.call = bearing == null ? null : { day: nd, bearing };
-
+  sim.night = null;
   sim.asleep = false;
   sim.wantSleep = false;
-  // at camp, or anywhere if there is no camp: you wake with whoever is around
+  sim.wantDawn = false;
   sim.plan.pending = !camp.up || atCamp(sim, p) ? "dawn" : null;
   sim.plan.day = nd;
   if (nd === KEYSTONE_DAY && !sim.keystone.done) startKeystone(sim, d);
-
   const lines = [`Day ${nd}.`];
-  if (!fireHeld && camp.up && camp.lit === false) lines.push("The fire was out before light.");
+  if (camp.up && !camp.lit) lines.push("The fire was out before light.");
   if (sim.call) lines.push(`At first light, a voice, a long way off. From the ${BEARINGS[seenBearing(sim, sim.call.bearing)]}.`);
   say(sim, lines.join(" "), sim.call ? "warn" : "info");
-  sim.events.push({ kind: "dawn", day: nd, fireHeld, rough });
-  return { hours, fireHeld, rough, taken: taken ? taken.id : null };
+  sim.events.push({ kind: "dawn", day: nd, fireHeld: n.fireHeld, rough: n.rough });
+  return { fireHeld: n.fireHeld, rough: n.rough, dawn: true };
 }
 
 export function bearingOf(from, to) {

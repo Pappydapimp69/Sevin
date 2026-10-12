@@ -16,7 +16,13 @@ export const STICK_MIND = 0.75;      // below this the ground starts offering th
 export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to burn
 export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {} });
 
-const mind = (sim) => sim.player.sanity;
+// What the mind is making up, right now. A lit glow stick holds it all off; the
+// fruit puts its own meter in place of yours (superficial: yours is untouched).
+const mind = (sim) => {
+  if (sim.fruit && sim.time < sim.fruit.until) return sim.fruit.meter;
+  if (sim.player.glowUntil != null && sim.time < sim.player.glowUntil) return 1;
+  return sim.player.sanity;
+};
 /** The level of the failing mind as a number, for the world that draws it. Never shown. */
 export const mindLevel = mind;
 

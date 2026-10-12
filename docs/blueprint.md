@@ -145,6 +145,55 @@ and world effects off. Brain T1 stands: a reactive hallucination is more
 interesting but harder to hold to "stable reads as a place"; the seal is
 state-driven and fixed to place for that reason.
 
+## 0.2: the evening, the two o'clock wake, the golden tree
+
+**Evening** (`sim.js`). From dusk the clock slows (45 s a game hour). At the fire
+there is time for the team: *Sing* (each person at camp sings a verse made from
+a fact of today, to their own whistle; a fake's verse comes from its bent
+account) and *Whistles* (each whistles in turn, by name: where you learn them).
+At 22:00 the clock stops: say who keeps watch, and you sleep. Away from camp at
+22:00 you sleep where you stand.
+
+**Night** (`night.js`). `sleep()` draws the whole night at once (constant roll
+count) and runs 22:00 to 02:00. You always wake at 02:00. From 02:00 to 06:00
+the clock runs at 300 s a game hour (20 minutes). Sleeping members do nothing;
+the watch sits up. Anyone missing is out there only in this window: they
+whistle back from the dark (heard to 70 m). Sleep again any time; awake at
+06:00, dawn comes on its own (`dawn()`).
+
+**Refusal zone.** 12 m round every active rescue spot. Nobody but you goes in.
+They stop at the edge: the real ones turn their backs; a fake faces in.
+
+**Golden tree** (`grove.js`). Some nights a missing person's spot holds a glowing
+tree instead of them. It is outside the hidden meter (the woods made it). It
+whistles in their voice like they would. Chop it: something drops every 2-3
+chops; the tree never falls. The chop follows the body inside it:
+- a real tree (the person is in a pocket beside it, unseen): glow sticks and one
+  fruit; fruit odds by drop 0/30/50/75/100%; four branches and the fruit and it
+  is done.
+- a person: arms first (always the first drop), then the head (30% on the second
+  chop if both arms were there, certain once they are gone), then the legs.
+Before the fruit falls they can still be found on a later night, without the
+arms they lost (one arm: half their skills; two: none). When the fruit falls
+the whistling stops and they are gone, real tree or not. One fruit per missing
+person. The woods remember: the tree keeps its scars and its look until chopped
+out; then the next one looks different. Nothing is left of a real tree at dawn;
+a person stands one more day.
+- The tell: its shadow. In the low sun (06:00-07:00) or by a real glow stick, a
+  person's tree casts a person.
+- Glow sticks are lit at the campfire only. Lit, a real one holds off what the
+  mind makes up for three hours. A limb will not catch.
+- The fruit fills both hands until you walk into camp. Eaten (real): for six
+  hours the real world dims and the view narrows and everything the mind makes
+  up shows full; its own hidden meter, full at first, drains x2 below 0.85, x3
+  below 0.75, x4 below 0.5. Your real meter is untouched.
+- Firelight is honest: at camp a head is a head. The team sees it; a fake wearing
+  that name reacts wrong. Remains at camp: bury (1 h), burn (fuel, everyone
+  pays), or ask the head about one day, once: the only witness that cannot be a
+  fake.
+- At 06:00 what lies on the ground turns true: glow sticks go to plain wood,
+  limbs are limbs.
+
 ## Not built in 0.1, on purpose
 
 - Further hallucinations: dead pylons seen as live, people who are not there.

@@ -1,14 +1,15 @@
 // main.js — the loop and the wiring. Holds no rules of its own.
 
 import * as S from "./sim.js";
-import { sleep, canSleep, BEARINGS, bearingOf } from "./night.js";
+import { sleep, dawn, canSleep, BEARINGS, bearingOf, swapOut } from "./night.js";
 import { createRenderer } from "./render.js";
 import { createInput } from "./input.js";
 import { createUI } from "./ui.js";
 import { createTutorial, tutorialStep } from "./tutorial.js";
 import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
-import { chatter } from "./percept.js";
+import { chatter, verses } from "./percept.js";
+import * as Grove from "./grove.js";
 import * as Save from "./save.js";
 import { createAudio } from "./audio.js";
 import { STUDIO, GAME, splashPrompt, skipSplash } from "./splash.js";
@@ -116,6 +117,26 @@ const campVerbs = {
   sleep: () => doSleep(),
   plan: () => { sim.plan.pending = "dawn"; openPending(); },
   canWalkOut: () => !!sim.world.farSide && Math.hypot(sim.world.farSide.x - sim.player.x, sim.world.farSide.y - sim.player.y) < sim.world.farSide.r + 4,
+  evening: () => !sim.tutorial && S.atCamp(sim, sim.player) && S.hourOf(sim.time) >= S.DUSK && S.hourOf(sim.time) < S.EVENING_END && S.party(sim).length > 0,
+  sing: () => {
+    sim.songs = (sim.songs || 0) + 1;
+    const vs = verses(sim, sim.songs);
+    vs.forEach((v, i) => setTimeout(() => { if (sim) { S.say(sim, `${v.name} sings: “${v.line}”`, "talk"); audio.event({ kind: "sing", voice: v.voice }, sim); } }, i * 2600));
+    S.pass(sim, 0.5);
+  },
+  round: () => {
+    const ps = S.party(sim).filter((m) => S.atCamp(sim, m));
+    ps.forEach((m, i) => setTimeout(() => { if (sim) { S.say(sim, `${m.name} whistles.`, "talk"); audio.event({ kind: "sing", voice: m.voice, ctx: S.whistleCtx(sim, m) }, sim); } }, i * 2200));
+    S.pass(sim, 0.25);
+  },
+  eat: () => { Grove.eat(sim); },
+  bury: (i) => { Grove.bury(sim, i); S.pass(sim, 1); },
+  burn: (i) => { Grove.burn(sim, i); },
+  askHead: (i) => {
+    const r = sim.remains[i];
+    // the dead cannot be fakes: the record as it was, once
+    ui.ask(sim, { id: r.msId, name: r.name + "'s head", head: true }, (id, day) => { if (r.asked) { S.say(sim, "It says nothing more."); return false; } r.asked = true; S.pass(sim, S.ASK_HOURS); return true; });
+  },
   walkOut: () => ui.confirm("Walk out now? Whoever has not gone home stays here.", () => finish(S.walkOut(sim))),
 };
 
@@ -266,7 +287,7 @@ function openPending(sleepAfter = false) {
   } else if (sim.plan.pending === "dusk") {
     ui.duskPlan(sim, (watch, sleepNow) => {
       S.setDuskPlan(sim, watch);
-      if (sleepNow || sleepAfter) setTimeout(doSleep, 0);
+      if (sleepNow || sleepAfter || S.hourOf(sim.time) >= S.EVENING_END) setTimeout(doSleep, 0);
     }, () => S.tendFire(sim));
   }
 }
@@ -290,7 +311,8 @@ function frame(now) {
       const inp = input.read(dt);
       S.tick(sim, dt, inp);
       audio.frame(sim, dt, Math.abs(inp.fwd) + Math.abs(inp.side) > 0.1, inp.sprint);
-      if (sim.wantSleep) { sim.wantSleep = false; goToSleep(true); }
+      if (sim.wantSleep) { sim.wantSleep = false; goToSleep(false); }
+      if (sim.wantDawn) { sim.wantDawn = false; dawn(sim); Save.saveRun(sim); if (sim.plan.pending) openPending(); }
       if (sim.plan.pending && !ui.open) openPending();
       // someone says something now and then
       chatClock += dt;
@@ -370,4 +392,4 @@ const hudHide = () => ui.hideHud();
 if (skipSplash(location.hash, location.search)) title(); else splash();
 
 // for tests and the curious
-window.__sevin = { get sim() { return sim; }, get scene() { return scene; }, get splashUp() { return splashUp; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { Grove, swapOut, get sim() { return sim; }, get scene() { return scene; }, get splashUp() { return splashUp; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };

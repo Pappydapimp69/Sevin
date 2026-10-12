@@ -64,6 +64,21 @@ export function chatter(sim, m, tick) {
   return pool[Math.floor(r * pool.length)];
 }
 
+/**
+ * The evening song: a verse each, from a fact of today, to their own whistle.
+ * A verse is a line of their account of the day, so a fake sings its bent
+ * account: if the line it picks is the bent one, the song is wrong. Picked by
+ * a side hash on (seed, member, day, how many songs tonight).
+ */
+export function verses(sim, k = 0) {
+  const d = today(sim);
+  return party(sim).filter((m) => sim.camp.up && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14).map((m) => {
+    const lines = accountFor(sim, m.id, d).lines.filter((l) => l && l.length > 3);
+    const r = stream(hash("verse", sim.seed, m.id, d, k))();
+    return { id: m.id, name: m.name, voice: m.voice, line: lines.length ? lines[Math.floor(r * lines.length)] : "the trail went on north" };
+  });
+}
+
 export { phantomSticks, phantomWatchers, seesPylonLit, shownWood, shownFire, mindLevel } from "./phantom.js";
 
 export const visibleParty = (sim) => party(sim);

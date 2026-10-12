@@ -6,6 +6,8 @@ import { phantomSticks, phantomWatchers, seesPylonLit, shownFire } from "./perce
 import { TENTS, daylight, hourOf, homeCount, PYLON_HOURS, PITCH_HOURS, STRIKE_HOURS, party, isNight } from "./sim.js";
 import { CELL } from "./world.js";
 import { createIllusions } from "./illusions.js";
+import { createGroveView } from "./grove-view.js";
+import { personOut } from "./grove.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
 const SLOT_COLOURS = [0xc8553d, 0x2e86ab, 0xf6ae2d, 0x86bbd8, 0x8f6593, 0x5c946e, 0xd4a373, 0x9b9b9b];
@@ -109,6 +111,7 @@ export function createRenderer(canvas) {
     for (const c of world.clearings) scene.add(landmark(c, world));
     B.ill = createIllusions(THREE, scene, B, world, camera);
     B.ill.setCalm(calmPref);
+    B.grove = createGroveView(THREE, scene, camera);
 
     // deadfalls
     B.deadfalls = world.deadfalls.map((df) => {
@@ -241,6 +244,9 @@ export function createRenderer(canvas) {
     scene.fog.far = 14 + (look.fog - 14) * (0.25 + 0.75 * day);
     scene.fog.near = scene.fog.far * 0.15;
     const ill = B.ill.update(sim, dt);
+    B.grove.update(sim);
+    // the fruit: the real world goes small and dim, and the view narrows
+    if (sim.fruit && sim.time < sim.fruit.until) { ill.lightMul *= 0.4; ill.fogMul *= 0.55; ill.fovAdd -= 14; }
     if (ill.skyTint) { sky.lerp(new THREE.Color(0x6f8a5c), ill.skyTint * day + ill.skyTint * 0.2); scene.background = sky; scene.fog.color = sky; }
     scene.fog.far *= ill.fogMul; scene.fog.near = scene.fog.far * 0.15;
     if (Math.abs(ill.fovAdd - fovAdd) > 0.01) { fovAdd += (ill.fovAdd - fovAdd) * Math.min(1, dt * 6); camera.fov = baseFov + fovAdd; camera.updateProjectionMatrix(); }
@@ -355,13 +361,15 @@ export function createRenderer(canvas) {
         f.userData.body.rotation.x = 0;
         f.position.set(m.x, Math.abs(Math.sin(f.userData.bob)) * 0.06, -m.y);
       }
+      // at the edge of where the lost one is: the real turn their backs; a fake faces in
+      if (m.edge) f.rotation.y = Math.atan2(-(m.edge.x - m.x), -(m.edge.y - m.y)) + (m.fake ? 0 : Math.PI);
       seen.add(m.id);
     }
     for (const [id, f] of B.members) if (!seen.has(id)) f.visible = false;
     for (const ms of sim.missing) {
       let f = B.missing.get(ms.id);
       if (!f) { f = figure(SLOT_COLOURS[ms.slot % SLOT_COLOURS.length], { kind: "rescue", id: ms.id }); B.missing.set(ms.id, f); }
-      f.visible = !ms.found && !ms.lost;
+      f.visible = personOut(sim, ms);           // out there only in the small hours
       f.position.set(ms.x, 0, -ms.y);
       f.rotation.y = sim.time * 0.3;
     }

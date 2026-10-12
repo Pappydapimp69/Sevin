@@ -16,12 +16,24 @@ import { makeVoice } from "./voice.js";
 import { SKILLS, fillSkills, TASK_SKILL } from "./skills.js";
 import * as Phantom from "./phantom.js";
 import * as Mirage from "./mirage.js";
+import * as Grove from "./grove.js";
 export { TASK_SKILL };
 
 export const SAVE_VERSION = 1;
 export const SEC_PER_HOUR = 20;      // real seconds per game hour
 export const WORK_SPEED = 8;         // time runs this much faster while you work
 export const DAWN = 6, DUSK = 18;
+export const EVENING_END = 22;       // the clock stops: say who keeps watch, and sleep
+export const WAKE = 2;               // you always wake at two
+// Real seconds per game hour: the evening slows down, the small hours slower still.
+export const EVENING_SEC = 45, SMALL_HOURS_SEC = 300;
+export function secPerHour(t) {
+  const h = hourOf(t);
+  if (h >= DUSK && h < EVENING_END) return EVENING_SEC;
+  if (h >= WAKE && h < DAWN) return SMALL_HOURS_SEC;
+  return SEC_PER_HOUR;
+}
+export const inSmallHours = (t) => hourOf(t) >= WAKE && hourOf(t) < DAWN;
 // The camp's layout, around the fire: where the tents stand (render draws
 // them, the sleep scene walks into one).
 export const TENTS = Object.freeze([{ dx: -3.4, dy: 2.4 }, { dx: 3.2, dy: 2.8 }]);
@@ -92,6 +104,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     keystone: { done: false, active: false, order: [], nextAt: 0 },
     whistleWindow: 0,
     mirage: {},
+    night: null,                             // the night's draws, between sleeping and dawn
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -126,6 +139,7 @@ export function attach(sim, world) {
   Object.defineProperty(sim, "fields", { value: new Map(), enumerable: false, writable: true, configurable: true });
   Object.defineProperty(sim, "sealedCells", { value: new Set(), enumerable: false, writable: true, configurable: true });
   sim.mirage ||= {};
+  Grove.ensure(sim);
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
   return sim;
 }
@@ -603,10 +617,15 @@ function finishCampWork(sim, w) {
  */
 export function actionTargets(sim, tolerance = 1) {
   const p = sim.player, W = sim.world, out = [];
-  if (sim.over) return out;
+  if (sim.over || p.holding) return out;          // both hands full: nothing else until camp
   const R = (r) => r * tolerance;
+  const ge = sim.grove?.enc;
+  if (ge && Grove.treeUp(sim) && dist(ge, p) < R(REACH + 1.2)) out.push({ kind: "gchop", id: 0, x: ge.x, y: ge.y, h: 2.2, label: "Chop the glowing tree" });
+  for (const it of sim.gdrops || [])
+    if (!it.taken && dist(it, p) < R(2.6) && (it.shown === "fruit" || it.shown === "branch" || it.shown === "stick"))
+      out.push({ kind: "gpick", id: it.id, x: it.x, y: it.y, h: 0.5, label: it.shown === "fruit" ? "Pick it up (both hands)" : it.shown === "branch" ? "Pick up the glowing branch" : "Pick up wood" });
   for (const ms of sim.missing)
-    if (!ms.found && !ms.lost && dist(ms, p) < R(REACH)) out.push({ kind: "rescue", id: ms.id, x: ms.x, y: ms.y, h: 1.9, label: "Bring " + ms.name + " home" });
+    if (Grove.personOut(sim, ms) && dist(ms, p) < R(REACH)) out.push({ kind: "rescue", id: ms.id, x: ms.x, y: ms.y, h: 1.9, label: "Bring " + ms.name + " home" });
   for (let i = 0; i < W.pylons.length; i++)
     if (!sim.pylons[i].spent && dist(W.pylons[i], p) < R(REACH + 0.5)) out.push({ kind: "pylon", id: i, x: W.pylons[i].x, y: W.pylons[i].y, h: 4.4, label: "Light the pylon" });
   for (let i = 0; i < W.deadfalls.length; i++) {
@@ -627,6 +646,8 @@ export function actionTargets(sim, tolerance = 1) {
     const pile = sim.camp.pile > 0 ? "" : " (no wood in the pile)";
     const seen = Phantom.shownFire(sim);
     out.push({ kind: seen.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, phantom: seen.phantom, label: (seen.lit ? "Feed the fire" : "Light the fire") + pile });
+    // a glow stick wakes only in the campfire
+    if (p.glows?.length && sim.camp.lit && !Grove.glowing(sim)) out.push({ kind: "snap", id: 0, x: sim.camp.x, y: sim.camp.y + 0.3, h: 1.2, label: "Hold a glowing branch to the fire" });
   }
   // the far side is a place, not a thing: no facing needed
   if (W.farSide && dist(W.farSide, p) < W.farSide.r) out.push({ kind: "home", id: 0, x: p.x, y: p.y, h: 0, label: "Light a pylon home", area: true });
@@ -664,8 +685,8 @@ export function targetFor(sim, kind, id, tolerance = 1) {
  * is its own long work and starts at once.
  */
 export const ACT_SECONDS = 3;
-const ACT_TIME = { stick: 0.35, feed: 1.2, light: 3, pylon: 3, home: 3, rescue: 3 };
-export const ACT_VERB = { stick: "Picking up wood", light: "Lighting the fire", feed: "Feeding the fire", pylon: "Lighting the pylon", home: "Lighting a pylon home", rescue: "Helping them up" };
+const ACT_TIME = { stick: 0.35, feed: 1.2, light: 3, pylon: 3, home: 3, rescue: 3, gchop: 1.4, gpick: 0.6, snap: 2 };
+export const ACT_VERB = { stick: "Picking up wood", light: "Lighting the fire", feed: "Feeding the fire", pylon: "Lighting the pylon", home: "Lighting a pylon home", rescue: "Helping them up", gchop: "Chopping", gpick: "Picking it up", snap: "Holding it to the fire" };
 export function begin(sim, target = null, tolerance = 1) {
   if (sim.work?.kind === "act") return null;            // already at it
   const t = target || resolveAction(sim, tolerance);
@@ -695,6 +716,9 @@ export function act(sim, target = null, tolerance = 1) {
     case "pylon": return lightPylon(sim, a.id);
     case "home": return lightHome(sim);
     case "rescue": return rescue(sim, a.id);
+    case "gchop": Grove.chop(sim); break;
+    case "gpick": Grove.pick(sim, a.id); break;
+    case "snap": Grove.snap(sim); break;
   }
   return a;
 }
@@ -865,9 +889,15 @@ export function whistle(sim, power = 1) {
   const second = (sim.whistleWindow || 0) > 0;
   const inRange = party(sim).filter((m) => dist(m, sim.player) <= HEAR * power).sort((a, b) => dist(a, sim.player) - dist(b, sim.player));
   for (const m of inRange) {
-    if (m.answerAt != null || m.sanity < 0.25) continue;
+    if (m.answerAt != null || m.sanity < 0.25 || m.sleeping) continue;
     const jitter = stream(hash("whistle", sim.seed, m.id, Math.floor(sim.time * 60)))();
     m.answerAt = sim.time + 0.04 + dist(m, sim.player) * 0.005 + jitter * 0.03;    // ~1-4 s
+  }
+  // the night carries: whoever is out there whistles back from the dark, to 70 m
+  if (inSmallHours(sim.time) || Grove.treeUp(sim)) for (const ms of sim.missing) {
+    if (ms.answerAt != null || !(Grove.personOut(sim, ms) || (sim.grove.enc?.msId === ms.id && Grove.treeUp(sim) && !sim.grove.enc.silent))) continue;
+    if (dist(ms, sim.player) > 70 * power) continue;
+    ms.answerAt = sim.time + 0.008 + dist(ms, sim.player) * 0.0001;
   }
   let summonedId = null;
   if (second && inRange.length) {
@@ -963,7 +993,11 @@ export function walkOut(sim) {
 function rescue(sim, id) {
   const ms = sim.missing.find((x) => x.id === id);
   ms.found = true;
-  const m = newMember(sim, ms.name, ms.slot, fillSkills(ms.skills), false, ms.x, ms.y);
+  // what the tree took, they come home without: one arm, half their skill; both, none
+  const k = (ms.arms ?? 2) >= 2 ? 1 : ms.arms === 1 ? 0.5 : 0;
+  const sk = Object.fromEntries(Object.entries(fillSkills(ms.skills)).map(([n, v]) => [n, Math.floor(v * k)]));
+  const m = newMember(sim, ms.name, ms.slot, sk, false, ms.x, ms.y);
+  m.arms = ms.arms ?? 2;
   m.id = ms.id; sim.nextId = Math.max(sim.nextId, ms.id + 1);
   m.voice = ms.voice;                          // their own whistle, unbent
   m.sanity = Math.max(0.2, ms.sanity);
@@ -973,7 +1007,7 @@ function rescue(sim, id) {
   if (i >= 0) sim.members[i] = m; else sim.members.push(m);
   sim.stats.rescued++;
   note(sim, { verb: "found", actor: "you", object: null, x: ms.x, y: ms.y, withWhom: [m.id], key: "found:" + id });
-  say(sim, ms.name + " is here, cold, and comes with you.", "good");
+  say(sim, ms.name + (m.arms < 2 ? (m.arms ? " is here, cold, one arm gone at the shoulder, and comes with you." : " is here, cold, both arms gone, and comes with you.") : " is here, cold, and comes with you."), "good");
   sim.events.push({ kind: "rescued", id });
   return { kind: "rescue", id };
 }
@@ -1142,16 +1176,42 @@ export function tick(sim, dt, input = {}) {
   // Chopping runs the clock fast (a deadfall is a day's work). Everything else
   // takes its hours at the pace of the world: an hour to make camp is an hour.
   const speed = sim.work && (sim.work.kind === "chop" || sim.work.kind === "ask") ? WORK_SPEED : 1;
-  const hours = (dt * speed) / SEC_PER_HOUR;
+  let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;
   sim.time += hours;
+  // 22:00: the clock stops. The watch is set, and you sleep.
+  const hb = hourOf(before);
+  if (!sim.tutorial && hb >= DUSK && hb < EVENING_END && hourOf(sim.time) >= EVENING_END) {
+    sim.time = before - hb + EVENING_END; hours = sim.time - before;
+    sim.work = null;
+    if (sim.camp.up && atCamp(sim, p) && sim.plan.duskDone !== today(sim)) sim.plan.pending = "dusk";
+    else sim.wantSleep = true;
+  }
+  // awake at six: dawn comes on its own
+  if (!sim.tutorial && hb >= WAKE && hb < DAWN && hourOf(sim.time) >= DAWN) {
+    sim.time = before - hb + DAWN; hours = sim.time - before;
+    sim.wantDawn = true;
+  }
 
   if (sim.whistleWindow > 0) sim.whistleWindow = Math.max(0, sim.whistleWindow - dt);   // real seconds
   keystoneStep(sim);
   Mirage.tickMirage(sim, dt, input);
   tickWork(sim, hours, dt);
   dropWood(sim);
-  for (const m of party(sim)) tickMember(sim, m, dt * speed, hours);
+  Grove.setDown(sim);
+  Grove.tidy(sim);
+  for (const m of party(sim)) { if (m.sleeping && !m.watch) continue; tickMember(sim, m, dt * speed, hours); }
+  refuse(sim);
+  // those out there whistle back, distressed once the tree is being cut; silent once the fruit is down
+  for (const ms of sim.missing) {
+    if (ms.answerAt == null || sim.time < ms.answerAt) continue;
+    ms.answerAt = null;
+    const e = sim.grove?.enc, tree = e && e.msId === ms.id && Grove.treeUp(sim);
+    if (ms.lost || (tree && e.silent)) continue;
+    if (!tree && !Grove.personOut(sim, ms)) continue;
+    sim.events.push({ kind: "answer", id: ms.id, x: ms.x, y: ms.y, voice: ms.voice, distress: !!(tree && e.drops > 0), ctx: whistleCtx(sim, { ...ms, slot: ms.slot }) });
+  }
+  Grove.tickFruit(sim, hours, 1 + areaAt(sim, p.y) * 0.6);
 
   // the fire burns whenever it is lit
   if (sim.camp.lit) {
@@ -1169,16 +1229,24 @@ export function tick(sim, dt, input = {}) {
     say(sim, "It is dark.", "warn");
     sim.events.push({ kind: "dusk" });
   }
-  if (!sim.tutorial && isNight(sim.time) && sim.camp.up && atCamp(sim, p) && sim.plan.duskDone !== today(sim) && !sim.work) {
-    sim.plan.pending = "dusk";
-  }
-  // stay up all night and the night takes you where you stand
-  if (!sim.tutorial && isNight(sim.time) && hourOf(sim.time) >= 4 && hourOf(sim.time) < DAWN) {
-    sim.events.push({ kind: "collapse" });
-    say(sim, "You do not remember lying down.", "warn");
-    sim.wantSleep = true;
-  }
   return hours;
+}
+
+// Nobody but you goes near where the lost one is. They stop at the edge; the
+// real ones turn their backs to it, and something wearing a name faces in.
+function refuse(sim) {
+  const spots = Grove.spots(sim);
+  for (const m of party(sim)) {
+    m.edge = null;
+    for (const s of spots) {
+      const d = dist(m, s);
+      if (d >= Grove.ZONE_R + 0.5) continue;
+      const k = (Grove.ZONE_R + 0.5) / Math.max(0.01, d);
+      const nx = s.x + (m.x - s.x) * k, ny = s.y + (m.y - s.y) * k;
+      if (canStand(sim, nx, ny)) { m.x = nx; m.y = ny; }
+      m.edge = { x: s.x, y: s.y };
+    }
+  }
 }
 
 // The hidden meter. Depth and night wear on everyone; a lit pylon cancels depth

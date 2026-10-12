@@ -202,9 +202,9 @@ export function createUI(api) {
     }
     paint();
     show("plan",
-      h("h2", {}, `Dusk, day ${today(sim)}`), body,
+      h("h2", {}, hourOf(sim.time) >= 22 ? `Ten o'clock, day ${today(sim)}` : `Dusk, day ${today(sim)}`), body,
       h("div", { class: "row" },
-        btn("Stay up a while", () => { onDone(watch, false); close(); }),
+        hourOf(sim.time) >= 22 ? null : btn("Stay up a while", () => { onDone(watch, false); close(); }),
         btn("Sleep", () => { onDone(watch, true); close(); }, "primary")));
   }
 
@@ -243,6 +243,20 @@ export function createUI(api) {
       const here = sim.pitch && Math.hypot(sim.pitch.x - sim.player.x, sim.pitch.y - sim.player.y) < 5;
       items.push(btn(here ? "Keep making camp" : "Make camp here", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
       if (!v.canMake()) items.push(h("p", { class: "small" }, "A camp needs open ground all round."));
+    }
+    // the evening at the fire, until ten
+    if (v.evening()) {
+      items.push(btn("Sing together", () => { close(); v.sing(); }, "primary"));
+      items.push(btn("Whistle round the fire", () => { close(); v.round(); }));
+    }
+    if (atCamp(sim, sim.player)) {
+      if (sim.campFruit) items.push(btn("Eat the fruit", () => { close(); v.eat(); }));
+      (sim.remains || []).forEach((r, i) => {
+        const what = r.truth === "head" ? `${r.name}'s head` : `the ${r.truth}`;
+        if (r.truth === "head" && !r.asked) items.push(btn(`Ask ${r.name}'s head about a day`, () => { close(); v.askHead(i); }));
+        items.push(btn(`Bury ${what}`, () => { close(); v.bury(i); }));
+        items.push(btn(`Burn ${what}`, () => { close(); v.burn(i); }));
+      });
     }
     if (v.canWalkOut()) items.push(btn("Walk out of the woods", () => { close(); v.walkOut(); }, "primary"));
     items.push(btn(isNight(sim.time) || hourOf(sim.time) >= DUSK - 1 ? "Sleep" : "Sleep (not until dusk)", () => { close(); v.sleep(); }, v.canSleep() ? "" : "disabled"));
@@ -335,6 +349,9 @@ export function createUI(api) {
     const wood = shownWood(sim);
     if (wood) bits.push(`carrying ${wood} wood`);
     if (sim.player.carryingKit) bits.push("the camp kit");
+    if (sim.player.holding) bits.push("it, in both hands");
+    if (sim.player.glows?.length) bits.push(`${sim.player.glows.length} glowing branch${sim.player.glows.length > 1 ? "es" : ""}`);
+    if (sim.player.glowUntil != null && sim.time < sim.player.glowUntil) bits.push("a lit branch");
     if (sim.camp.up && atCamp(sim, sim.player)) bits.push(`pile ${sim.camp.pile}`, `fire ${fireWords(shownFire(sim))}`);
     $("carry").textContent = bits.join(" · ");
     const shake = mindLevel(sim) < 0.4 && !sim.tutorial ? Math.sin(sim.time * 90) * 0.5 * (0.4 - mindLevel(sim)) : 0;      // the needle will not sit
@@ -355,7 +372,8 @@ export function createUI(api) {
     const hint = $("sleepHint");
     const endDay = !sim.tutorial && !sim.over && sim.camp.up && isNight(sim.time) && atCamp(sim, sim.player) && !sim.work && !sim.plan.pending;
     hint.hidden = !endDay;
-    if (endDay) hint.textContent = sch === "touch" ? `Tap ${KEYS.touch.sleep} to end the day` : `Press ${KEYS[sch].sleep} to end the day`;
+    const what = hourOf(sim.time) < 6 ? "sleep until morning" : "end the day";
+    if (endDay) hint.textContent = sch === "touch" ? `Tap ${KEYS.touch.sleep} to ${what}` : `Press ${KEYS[sch].sleep} to ${what}`;
     $("work").textContent = sim.work ? workText(sim.work, sim) : "";
     $("work").hidden = !sim.work;
 

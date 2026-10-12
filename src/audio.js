@@ -120,7 +120,10 @@ export function createAudio() {
         // their whistle back: from where they are, fainter with distance
         const dx = e.x - sim.player.x, dy = e.y - sim.player.y, d = Math.hypot(dx, dy);
         const a = Math.atan2(dx, dy) - sim.player.yaw;
-        whistleTone(Math.max(-1, Math.min(1, Math.sin(a))), Math.max(0.04, 0.16 * (1 - d / 30)), e.ctx ? phrase(e.voice || PLAYER_VOICE, e.ctx) : notes(e.voice || PLAYER_VOICE));
+        let ph = e.ctx ? phrase(e.voice || PLAYER_VOICE, e.ctx) : notes(e.voice || PLAYER_VOICE);
+        // distressed: higher, faster, again
+        if (e.distress) ph = [...ph, ...ph.map((n) => ({ ...n, at: n.at + 0.5 }))].map((n) => ({ ...n, freq: n.freq * 1.12, dur: n.dur * 0.6, at: n.at * 0.55 }));
+        whistleTone(Math.max(-1, Math.min(1, Math.sin(a))), Math.max(0.04, 0.16 * (1 - d / (e.distress || d > 30 ? 80 : 30))), ph);
         break;
       }
       case "dawn": if (sim.call) setTimeout(() => call(sim.call.bearing, sim.player.yaw), 600); break;
@@ -128,6 +131,14 @@ export function createAudio() {
       case "shown": tone(523, 2.2, 0.1, 0, 0, "triangle"); tone(622, 2.4, 0.08, 0, 0, "triangle", 0.2); break;
       case "restore": burst({ freq: 300, dur: 0.8, gain: 0.3, type: "lowpass" }); break;
       case "gone": tone(440, 1.2, 0.12, 0, -300, "sine"); break;
+      case "sing": whistleTone(0, 0.13, e.ctx ? phrase(e.voice, e.ctx) : notes(e.voice)); break;
+      case "wake": tone(110, 2.4, 0.08, 0, -10, "sine"); break;
+      case "gchop": burst({ freq: 260, dur: 0.12, gain: 0.45, q: 2 }); burst({ freq: 2400, dur: 0.05, gain: 0.12 }); break;
+      case "gdrop": burst({ freq: e.fruit ? 160 : 700, dur: 0.25, gain: 0.35, type: "lowpass" }); break;
+      case "silence": tone(330, 1.6, 0.05, 0, -120, "sine"); break;
+      case "reveal": tone(98, 2.8, 0.25, 0, -20, "sawtooth"); tone(104, 2.8, 0.2, 0, -20, "sawtooth"); break;
+      case "glowOn": tone(880, 1.5, 0.08); tone(1320, 1.8, 0.05, 0, 0, "sine", 0.1); break;
+      case "ate": tone(220, 3, 0.1, 0, -110, "triangle"); break;
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }
