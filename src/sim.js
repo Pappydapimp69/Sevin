@@ -66,7 +66,7 @@ export const PITCH_HOURS = 5;
 // area after) and with a mind that is going; teammates grow with practice.
 export const PLAYER_BUILD = [0.6, 0.5, 0.4, 0.3, 0.2];
 export const buildRate = (who, sim) => (who === "you"
-  ? PLAYER_BUILD[Math.min(PLAYER_BUILD.length - 1, areaAt(sim, sim.player.y))] * (0.8 + 0.2 * sim.player.sanity)
+  ? PLAYER_BUILD[Math.min(PLAYER_BUILD.length - 1, areaAt(sim, sim.player.y))] * (0.8 + 0.2 * sim.player.sanity) + 0.25 * (sim.player.skills?.build || 0)
   : 0.25 + 0.25 * (who.skills.build || 0));
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
 // pieces out of it. Carrying makes a bigger haul likelier, never certain.
@@ -362,7 +362,9 @@ export const byId = (sim, id) => sim.members.find((m) => m.id === id);
 export const nameOf = (sim, id) => (id === "you" ? "you" : byId(sim, id)?.name || "someone");
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const atCamp = (sim, p) => sim.camp.up && dist(p, sim.camp) < CAMP_R;
-const skill = (m, k) => (m === "you" ? 0 : m.skills[k]);
+// you have skills too now, and they grow the same way
+const skill = (m, k) => (m === "you" ? (m_you.skills?.[k] || 0) : m.skills[k]);
+let m_you = { skills: {} };
 export const areaAt = (sim, y) => Math.max(0, Math.min(sim.world.areas - 1, Math.floor(y / CELL / AREA_H)));
 
 // The deadfall that matters now: the first uncut one north of the camp.
@@ -592,13 +594,15 @@ function tickMember(sim, m, dt, hours) {
 // lesson (twice the usual step), so by the third area the builders are quick.
 function buildPractice(sim, m, hours) {
   m.buildHours = (m.buildHours || 0) + hours;
-  while (m.buildHours >= 1) { m.buildHours -= 1; practice(sim, m, "build"); practice(sim, m, "build"); }
+  while (m.buildHours >= 1) { m.buildHours -= 1; practice(sim, m, "build"); }
 }
 
+// Every action is practice: +0.2 to the skill it used, for you and the team alike (to 6).
+export const PRACTICE_STEP = 0.2;
 export function practice(sim, m, k) {
-  if (m === "you") return;
-  const n = stream(hash("grow", sim.seed, m.id, k, Math.floor(sim.time * 4)))();
-  m.skills[k] = Math.min(6, m.skills[k] + (m.fake ? 0.12 : 0.06) + (n - 0.5) * 0.04);
+  const who = m === "you" ? sim.player : m;
+  who.skills ||= { cut: 0, carry: 0, fire: 0, build: 0, watch: 0 };
+  who.skills[k] = Math.min(6, (who.skills[k] || 0) + PRACTICE_STEP);
 }
 
 // ---------------------------------------------------------------------------
@@ -617,7 +621,7 @@ function chopAt(sim, i, who, hours) {
   d.done = Math.min(1, d.done + (hours * chopRate(who)) / df.work);
   const actor = who === "you" ? "you" : who.id;
   note(sim, { verb: "cut", actor, object: "deadfall", cls: "gate", x: df.x, y: df.y, key: "cut:" + actor + ":" + i });
-  if (who !== "you") { who.worked += hours; if (who.worked > 1) { who.worked = 0; practice(sim, who, "cut"); } }
+  { const w = who === "you" ? sim.player : who; w.worked = (w.worked || 0) + hours; if (w.worked > 1) { w.worked = 0; practice(sim, who, "cut"); } }
   if (d.done >= 1) {
     sim.fields.clear();
     note(sim, { verb: "cleared", actor, object: "deadfall", cls: "gate", x: df.x, y: df.y, key: "cleared:" + i });
@@ -669,11 +673,12 @@ function tickWork(sim, hours, dt) {
     if (!P || sim.camp.up || dist(sim.player, P) > 6) { sim.work = null; return; }
     P.left -= hours * buildRate("you", sim);
     P.hands.includes("you") || P.hands.unshift("you");
+    buildPractice(sim, sim.player, hours);
     if (P.left <= 0) pitchDone(sim);
   } else if (w.kind === "fell") {
     const t = sim.world.trees[w.id];
     if (!t || dist(sim.player, t) > 3.5) { sim.work = null; return; }
-    sim.fellLeft[w.id] = (sim.fellLeft[w.id] ?? FELL_HOURS) - hours;
+    sim.fellLeft[w.id] = (sim.fellLeft[w.id] ?? FELL_HOURS) - hours * chopRate("you");
     if (sim.fellLeft[w.id] <= 0) {
       delete sim.fellLeft[w.id];
       sim.felled.push(w.id);
@@ -683,6 +688,7 @@ function tickWork(sim, hours, dt) {
       sim.player.wood += take;
       for (let k = 0; k < FELL_WOOD - take; k++) sim.gdrops.push({ id: sim.gdrops.length, truth: "stick", shown: "stick", x: t.x + (k - 1) * 0.7, y: t.y - 1.2, d: today(sim), taken: false });
       note(sim, { verb: "felled", actor: "you", object: "tree", cls: "wood", x: t.x, y: t.y });
+      practice(sim, "you", "cut");
       say(sim, take < FELL_WOOD ? `The tree comes down. You take ${take}; ${FELL_WOOD - take} lie by the stump.` : `The tree comes down. You take ${take} wood.`, "good");
       sim.events.push({ kind: "felled" });
     }
@@ -834,6 +840,7 @@ export function act(sim, target = null, tolerance = 1) {
       if (a.phantom) { Phantom.pickPhantom(sim, a.id); sim.events.push({ kind: "stick" }); break; }
       sim.sticks[a.id] = true;
       p.wood += 1;
+      practice(sim, "you", "carry");
       note(sim, { verb: "picked", actor: "you", object: "firewood", cls: "wood", x: W.sticks[a.id].x, y: W.sticks[a.id].y });
       sim.events.push({ kind: "stick" });
       break;
@@ -844,7 +851,7 @@ export function act(sim, target = null, tolerance = 1) {
       sim.work = sim.work?.kind === "fell" ? null : { kind: "fell", id: a.id };
       break;
     case "light":
-    case "feed": if (a.phantom) Phantom.feedPhantom(sim); else tendFire(sim); break;
+    case "feed": if (a.phantom) Phantom.feedPhantom(sim); else { tendFire(sim); practice(sim, "you", "fire"); } break;
     case "pylon": return lightPylon(sim, a.id);
     case "home": return lightHome(sim);
     case "rescue": return rescue(sim, a.id);
@@ -1399,6 +1406,7 @@ export function setDuskPlan(sim, watch) {
  * [-1,1]. Returns the hours that passed.
  */
 export function tick(sim, dt, input = {}) {
+  m_you = sim.player;
   if (sim.over || sim.plan.pending || sim.asleep) return 0;
   dt = Math.min(dt, 0.1);
   const p = sim.player;
