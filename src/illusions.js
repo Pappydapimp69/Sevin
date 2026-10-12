@@ -179,8 +179,9 @@ export function createIllusions(THREE, scene, B, world, camera) {
       grove.add(t);
     });
     grove.scale.setScalar(0.001); grove.visible = false; scene.add(grove);
+    const motes = () => { const m = new THREE.Group(); for (let i = 0; i < 14; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.06, 5, 4), new THREE.MeshBasicMaterial({ color: 0xfff0b0 })); s.userData.mote = i; m.add(s); } return m; };
     const obj = { castle: castleMesh(THREE), chest: chestMesh(THREE), hole: holeMesh(THREE), cabin: cabinMesh(THREE), well: wellMesh(THREE), pylon: pylonLure(THREE), lamp: lampMesh(THREE), stones: stonesMesh(THREE), tent: tentMesh(THREE) };
-    for (const o of Object.values(obj)) { o.visible = false; scene.add(o); }
+    for (const o of Object.values(obj)) { o.add(motes()); o.visible = false; scene.add(o); }
     return { grove, obj, k: 0 };
   });
 
@@ -196,6 +197,12 @@ export function createIllusions(THREE, scene, B, world, camera) {
         const o = D.obj[kindFor(sim, d)];
         o.visible = true; o.position.set(st.obj.x, 0, -st.obj.y);
         o.rotation.y = Math.atan2(sim.player.x - st.obj.x, -(sim.player.y - st.obj.y)) + Math.PI;
+        // the air round it shimmers with motes; banners move; smoke rises
+        o.traverse((c) => {
+          if (c.userData.mote != null) { const i = c.userData.mote, a = clock * 0.6 + i * 0.45; c.position.set(Math.cos(a) * (3 + (i % 4)), 1 + ((clock * 0.5 + i * 0.37) % 6), Math.sin(a) * (3 + (i % 4))); }
+          if (c.userData.flutter) c.rotation.y = Math.sin(clock * 2.3 + c.position.x) * 0.35;
+          if (c.userData.smoke != null) { const k = (clock * 0.3 + c.userData.smoke * 0.25) % 1; c.position.y = 7.6 + k * 4; c.material.opacity = 0.4 * (1 - k); c.scale.setScalar(1 + k * 1.5); }
+        });
         const w = 1 + Math.sin(clock * 3) * 0.015, far = Math.max(1, Math.min(4, (st.dist || 14) / 14));     // it grows as it goes, so it is never lost behind the trunks
         o.scale.set(w * far, far / w, w * far);
         stretch = Math.max(stretch, st.stretch || 0);
@@ -236,6 +243,11 @@ function castleMesh(THREE) {
     const c = new THREE.Mesh(new THREE.ConeGeometry(2.2, 3.5, 8), mat(THREE, 0x7a2a2a, 0x200808)); c.position.set(x, 13.7, z); g.add(t, c);
   }
   const door = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 4), new THREE.MeshBasicMaterial({ color: 0xffc060 })); door.position.set(0, 2, 3.05); g.add(door);
+  // battlements along the keep, lit windows, banners on the towers
+  for (let i = -4; i <= 4; i += 2) { const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), stone); m.position.set(i, 8.5, 3); g.add(m); const n = m.clone(); n.position.z = -3; g.add(n); }
+  const lit = new THREE.MeshBasicMaterial({ color: 0xffd27a });
+  for (const [x, y] of [[-3, 5.5], [3, 5.5], [-3, 2.5], [3, 2.5], [0, 6]]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.4), lit); w.position.set(x, y, 3.06); g.add(w); }
+  for (const x of [-6, 6]) { const b = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.2), new THREE.MeshLambertMaterial({ color: 0x9a1f2a, side: THREE.DoubleSide, emissive: 0x2a0508 })); b.position.set(x, 10.5, 3.3); b.userData.flutter = true; g.add(b); }
   return g;
 }
 function chestMesh(THREE) {
@@ -244,7 +256,14 @@ function chestMesh(THREE) {
   const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.75, 2.4, 10, 1, false, 0, Math.PI), wood); lid.rotation.z = Math.PI / 2; lid.rotation.y = Math.PI / 2; lid.position.y = 1.2;
   const glow = new THREE.PointLight(0xffd060, 6, 18, 2); glow.position.y = 1.6;
   const band = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffd060 })); band.position.set(0, 1.0, 0.78);
-  g.add(base, lid, glow, band); g.scale.setScalar(1.6);
+  g.add(base, lid, glow, band);
+  // a lock, iron corners, and coins spilled in the grass
+  const iron = mat(THREE, 0x3a3a3a, 0x0a0a0a);
+  const lock = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.35, 0.1), new THREE.MeshBasicMaterial({ color: 0xd8b04a })); lock.position.set(0, 1.0, 0.8); g.add(lock);
+  for (const [x, z] of [[-1.15, 0.7], [1.15, 0.7], [-1.15, -0.7], [1.15, -0.7]]) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.15, 1.25, 0.15), iron); c.position.set(x, 0.62, z); g.add(c); }
+  const gold = new THREE.MeshBasicMaterial({ color: 0xffd060 });
+  for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.03, 8), gold); c.position.set(-0.8 + i * 0.22 + (i % 2) * 0.1, 0.03, 1.1 + (i % 3) * 0.18); c.rotation.x = 0.2 * (i % 3); g.add(c); }
+  g.scale.setScalar(1.6);
   return g;
 }
 function holeMesh(THREE) {
@@ -263,7 +282,10 @@ function cabinMesh(THREE) {
   const win = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.2), new THREE.MeshBasicMaterial({ color: 0xffc060 })); win.position.set(1.8, 2.4, 2.52);
   const door = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.4), new THREE.MeshBasicMaterial({ color: 0x1a0f08 })); door.position.set(-1.4, 1.2, 2.52);
   const l = new THREE.PointLight(0xffa850, 6, 20, 2); l.position.set(1.8, 2.4, 4);
-  g.add(walls, roof, win, door, l); return g;
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.4, 0.8), mat(THREE, 0x5a5048)); chim.position.set(2.2, 6, -0.8);
+  g.add(walls, roof, win, door, l, chim);
+  for (let i = 0; i < 4; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(0.4 + i * 0.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0xb8b8b0, transparent: true, opacity: 0.35 })); p.position.set(2.2, 7.6 + i * 0.9, -0.8); p.userData.smoke = i; g.add(p); }
+  return g;
 }
 function wellMesh(THREE) {
   const g = new THREE.Group();
