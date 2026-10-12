@@ -156,6 +156,7 @@ export function attach(sim, world) {
   Grove.ensure(sim);
   sim.lifelines ||= { team: true, one: true, both: true };
   for (const m of sim.members) if (m.task === "pitch" && !sim.pitch) m.task = "auto";
+  sim.campEvent = false;                 // a scene, never resumed from a save
   sim.piles ||= [];                      // woodpiles left behind where a camp stood
   if (sim.site === undefined) sim.site = null;   // where you said the camp goes: the drop zone
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
