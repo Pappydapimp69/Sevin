@@ -371,6 +371,11 @@ export function createRenderer(canvas) {
       if (!f) { f = figure(SLOT_COLOURS[m.slot % SLOT_COLOURS.length], { kind: "member", id: m.id }); B.members.set(m.id, f); }
       // a scene's camera passing through someone does not see their insides
       f.visible = !(view.cam && Math.hypot(view.cam.x - m.x, view.cam.y - m.y) < 1.3);
+      // asleep: in the tents at camp, or lying where they are
+      if (m.sleeping && !m.watch) {
+        if (sim.camp.up && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14) { f.visible = false; seen.add(m.id); continue; }
+        f.userData.body.rotation.x = Math.PI / 2; f.position.set(m.x, 0.15, -m.y); seen.add(m.id); continue;
+      }
       const prev = f.userData.prev || { x: m.x, y: m.y };
       const mv = Math.hypot(m.x - prev.x, m.y - prev.y);
       if (mv > 0.001) f.rotation.y = Math.atan2(-(m.x - prev.x), -(m.y - prev.y));

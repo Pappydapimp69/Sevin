@@ -122,9 +122,11 @@ const campVerbs = {
   evening: () => !sim.tutorial && S.atCamp(sim, sim.player) && S.hourOf(sim.time) >= S.DUSK && S.hourOf(sim.time) < S.EVENING_END && S.party(sim).length > 0,
   sing: () => {
     sim.songs = (sim.songs || 0) + 1;
+    sim.sangDay = S.today(sim);
     const vs = verses(sim, sim.songs);
     vs.forEach((v, i) => setTimeout(() => { if (sim) { S.say(sim, `${v.name} sings: “${v.line}”`, "talk"); audio.event({ kind: "sing", voice: v.voice }, sim); } }, i * 2600));
     S.pass(sim, 0.5);
+    return vs.length * 2600;
   },
   round: () => {
     const ps = S.party(sim).filter((m) => S.atCamp(sim, m));
@@ -196,8 +198,15 @@ function tap(x, y) {
 function doSleep() {
   if (!canSleep(sim)) { S.say(sim, sim.tutorial ? "Not here." : "Not yet. Sleep comes at dusk."); return; }
   if (sim.camp.up && S.atCamp(sim, sim.player) && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
-  if (!S.atCamp(sim, sim.player)) ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep());
-  else goToSleep();
+  if (!S.atCamp(sim, sim.player)) { ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep()); return; }
+  // the day does not end without a song at the fire: once a night, before the tents
+  if (sim.sangDay !== S.today(sim) && S.party(sim).some((m) => S.atCamp(sim, m))) {
+    S.say(sim, "Before anyone turns in, they sing.", "talk");
+    const wait = campVerbs.sing();
+    setTimeout(() => { if (sim && !scene) goToSleep(); }, wait + 1500);
+    return;
+  }
+  goToSleep();
 }
 
 // ---------------------------------------------------------------- the night
