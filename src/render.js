@@ -535,7 +535,8 @@ export function createRenderer(canvas) {
     ray.far = 30;
     for (const hit of ray.intersectObjects(built.picks, false)) {
       const o = hit.object, owner = o.userData.owner;
-      if (owner && !owner.visible) continue;
+      // a hidden thing is not there to tap (unused phantom sticks keep a stale target)
+      if (!o.visible || (owner && !owner.visible)) continue;
       let up = o.parent, shown = true;
       while (up) { if (up.visible === false) shown = false; up = up.parent; }
       if (!shown || skip.includes(o.userData.pick?.kind)) continue;
