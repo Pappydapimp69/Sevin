@@ -747,7 +747,8 @@ export function actionTargets(sim, tolerance = 1) {
     const seen = Phantom.shownFire(sim);
     out.push({ kind: seen.lit ? "feed" : "light", id: 0, x: sim.camp.x, y: sim.camp.y, h: 1.4, phantom: seen.phantom, label: (seen.lit ? "Feed the fire" : "Light the fire") + pile });
     // a glow stick wakes only in the campfire
-    if (p.glows?.length) out.push({ kind: "snap", id: 0, x: sim.camp.x, y: sim.camp.y + 0.3, h: 1.2, label: "Hold a glowing branch to the fire" });
+    // an out fire is lit first; then the branch
+    if (p.glows?.length && sim.camp.lit) out.push({ kind: "snap", id: 0, x: sim.camp.x, y: sim.camp.y + 0.3, h: 1.2, label: "Hold a glowing branch to the fire" });
   }
   // a forest tree within reach: cut it down for wood. The forest stays a wall; a stump is a stump.
   if (!sim.tutorial) {
