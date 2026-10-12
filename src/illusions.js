@@ -35,14 +35,18 @@ export function createIllusions(THREE, scene, B, world, camera) {
   // --- bend: needs the instanced trees' slots --------------------------------
   const bent = new Map();                       // tree index -> true while leaning
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), AX = new THREE.Vector3();
-  function placeTree(i, lean, axis) {
+  // lean: a tilt about `axis`; stretch: taller or squatter; drift: the root slides a little (x, y metres)
+  function placeTree(i, lean, axis, stretch = 1, driftX = 0, driftY = 0, twist = 0) {
     const t = world.trees[i], slot = B.treeSlots[i];
     Q.setFromAxisAngle(axis, lean);
-    S.set(t.s, t.s, t.s);
-    AX.set(0, 1.5 * t.s, 0).applyQuaternion(Q);
-    P.set(t.x + AX.x, AX.y, -t.y + AX.z); M.compose(P, Q, S); B.trunkInst.setMatrixAt(i, M);
-    AX.set(0, 5.2 * t.s, 0).applyQuaternion(Q);
-    P.set(t.x + AX.x, AX.y, -t.y + AX.z); M.compose(P, Q, S); slot.arr.setMatrixAt(slot.idx, M);
+    if (twist) Q.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), twist));
+    const bx = t.x + driftX, by = t.y + driftY;
+    S.set(t.s, t.s * stretch, t.s);
+    AX.set(0, 1.5 * t.s * stretch, 0).applyQuaternion(Q);
+    P.set(bx + AX.x, AX.y, -by + AX.z); M.compose(P, Q, S); B.trunkInst.setMatrixAt(i, M);
+    S.set(t.s * (2 - stretch), t.s * stretch, t.s * (2 - stretch));
+    AX.set(0, 5.2 * t.s * stretch, 0).applyQuaternion(Q);
+    P.set(bx + AX.x, AX.y, -by + AX.z); M.compose(P, Q, S); slot.arr.setMatrixAt(slot.idx, M);
   }
   const NOQ = new THREE.Vector3(0, 0, 1);
   function bendTrees(sim, amp) {
@@ -50,12 +54,17 @@ export function createIllusions(THREE, scene, B, world, camera) {
     if (amp > 0.02) {
       for (let i = 0; i < world.trees.length; i++) {
         const t = world.trees[i], dx = t.x - p.x, dy = t.y - p.y, d2 = dx * dx + dy * dy;
-        if (d2 > 144) continue;
-        if (stream(hash("bend", sim.seed, i))() > 0.45 || inGlow(sim, t.x, t.y) || sim.felled?.includes(i)) continue;
-        const d = Math.sqrt(d2), k = smooth(clamp(1 - d / 12)) * amp;
+        if (d2 > 484) continue;
+        if (stream(hash("bend", sim.seed, i))() > 0.75 || inGlow(sim, t.x, t.y) || sim.felled?.includes(i)) continue;
+        const d = Math.sqrt(d2), k = smooth(clamp(1 - d / 22)) * amp;
         // lean toward the player: rotate about the horizontal axis perpendicular to the line to them
         const ax = new THREE.Vector3(dy / (d || 1), 0, dx / (d || 1));      // (three x, z = -y)
-        placeTree(i, 0.55 * k * Math.sin(clock * 0.9 + i), ax.normalize());
+        // and the forest breathes: trunks stretch and sag, roots slide a little, crowns turn
+        const ph = clock * 0.9 + i, slow = clock * 0.45 + i * 1.7;
+        placeTree(i, 0.8 * k * Math.sin(ph), ax.normalize(),
+          1 + 0.28 * k * Math.sin(slow),
+          0.6 * k * Math.sin(slow * 0.8) * (dy / (d || 1)), -0.6 * k * Math.sin(slow * 0.8) * (dx / (d || 1)),
+          0.5 * k * Math.sin(clock * 0.3 + i));
         now.add(i);
       }
     }
