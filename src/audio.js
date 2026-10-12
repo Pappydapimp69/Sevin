@@ -154,7 +154,14 @@ export function createAudio() {
         tone(70, 1.6, 0.12, 0, -25, "sawtooth");
         break;
       }
-      case "felled": for (let i = 0; i < 6; i++) setTimeout(() => burst({ freq: 300 - i * 30, dur: 0.15, gain: 0.3, type: "lowpass" }), i * 90); setTimeout(() => burst({ freq: 90, dur: 1.4, gain: 0.9, type: "lowpass" }), 700); break;
+      case "felled": {
+        // a teammate's tree is heard from where it falls, fainter with distance
+        const k = e.x == null ? 1 : Math.max(0, 1 - Math.hypot(e.x - sim.player.x, e.y - sim.player.y) / 90);
+        if (k <= 0) break;
+        for (let i = 0; i < 6; i++) setTimeout(() => burst({ freq: 300 - i * 30, dur: 0.15, gain: 0.3 * k, type: "lowpass" }), i * 90);
+        setTimeout(() => burst({ freq: 90, dur: 1.4, gain: 0.9 * k, type: "lowpass" }), 700);
+        break;
+      }
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }

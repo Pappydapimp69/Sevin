@@ -479,7 +479,16 @@ function tickMember(sim, m, dt, hours) {
         const old = dest && !sim.pitch && (m.load || 0) === 0 ? sim.piles.find((pl) => pl !== dest && pl.n > 0 && reachable(sim, m, pl)) : null;
         m.trips = (m.trips || 0) + 1;
         if (old && stream(hash("haul", sim.seed, m.id, m.trips))() < HAUL_CHANCE) { m.state = "haul"; m.haul = old; }
-        else { m.state = "gather"; m.site = woodSite(sim, m); }
+        else {
+          m.state = "gather"; m.site = woodSite(sim, m);
+          // a good hand with an axe takes a standing tree by the wood instead of picking up deadwood
+          m.fellTree = null; m.felling = 0;
+          if (m.site && (m.skills.cut || 0) >= 2) {
+            let best = null, bd = 6;
+            sim.world.trees.forEach((t, i) => { const d = dist(t, m.site); if (d < bd && !sim.felled.includes(i)) { bd = d; best = i; } });
+            m.fellTree = best;
+          }
+        }
         m.stateT = 0;
       }
       if (m.state === "haul") {
@@ -496,7 +505,23 @@ function tickMember(sim, m, dt, hours) {
       const site = m.site;
       if (!site) { taskDone(m, "camp"); break; }
       if (m.state === "gather") {
-        if (steer(sim, m, site.x, site.y, speedOf(m), dt, site.r * 0.6)) {
+        if (m.fellTree != null && steer(sim, m, site.x, site.y, speedOf(m), dt, site.r * 0.6)) {
+          // felling: three hours of axe-work, faster with Cutting; what they cannot carry stays as a pile
+          m.workT = sim.time;
+          if (sim.felled.includes(m.fellTree)) { m.fellTree = null; break; }      // someone else took it
+          m.felling = (m.felling || 0) + hours * chopRate(m);
+          if (m.felling >= FELL_HOURS) {
+            const t = sim.world.trees[m.fellTree];
+            sim.felled.push(m.fellTree); m.fellTree = null; m.felling = 0;
+            const take = Math.min(memberCarry(m), FELL_WOOD);
+            m.load = take; m.from = { x: site.x, y: site.y };
+            if (FELL_WOOD - take > 0) sim.piles.push({ x: site.x, y: site.y, n: FELL_WOOD - take });
+            note(sim, { verb: "felled", actor: m.id, object: "tree", cls: "wood", x: t.x, y: t.y });
+            sim.events.push({ kind: "felled", x: t.x, y: t.y });
+            practice(sim, m, "cut");
+            m.state = "carry";
+          }
+        } else if (m.fellTree == null && steer(sim, m, site.x, site.y, speedOf(m), dt, site.r * 0.6)) {
           // chopping deadwood, at the world's pace; one chop, then home with it
           m.gathering = (m.gathering || 0) + hours;
           m.workT = sim.time;
