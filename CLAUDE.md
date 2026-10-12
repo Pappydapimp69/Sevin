@@ -46,6 +46,10 @@ named constant and put any doubt in the report as a tuning note. Edges of
 features not built yet go in the working list, not the reply. An open Brain
 tension is surfaced in the report, not as a blocking question.
 
+A question for the owner is first put to Brain (`brain query`, 1-2 keywords) and
+`/zanegpt`; build on their answer and report the call. This includes "which
+device?" and "did you mean X?": pick the likelier reading, fix both if cheap.
+
 ## Testing
 
 - `npm test` — pure tier, every change.
