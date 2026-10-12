@@ -1266,7 +1266,10 @@ export function tick(sim, dt, input = {}) {
 
   // Chopping runs the clock fast (a deadfall is a day's work). Everything else
   // takes its hours at the pace of the world: an hour to make camp is an hour.
-  const speed = sim.work && (sim.work.kind === "chop" || sim.work.kind === "ask") ? WORK_SPEED : 1;
+  // Work that spends the day runs the day fast: chopping, asking, making or taking down camp.
+  // After dark the clock keeps its own pace.
+  const fast = sim.work && ["chop", "ask", "make", "strike"].includes(sim.work.kind);
+  const speed = fast && (sim.work.kind === "ask" || !isNight(sim.time)) ? WORK_SPEED : 1;
   let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;
   sim.time += hours;
