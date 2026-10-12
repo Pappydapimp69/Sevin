@@ -23,7 +23,12 @@ function h(tag, attrs = {}, ...kids) {
   for (const c of kids.flat()) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
   return el;
 }
-const btn = (label, fn, cls = "") => h("button", { class: cls, disabled: cls.includes("disabled"), on: { click: fn } }, label);
+// An unavailable choice stays focusable (greyed, inert) rather than disabled, so
+// a pad's selection never falls out of the menu when an option goes dead.
+const btn = (label, fn, cls = "") => {
+  const off = /\b(disabled|spent)\b/.test(cls);
+  return h("button", { class: cls, "aria-disabled": off ? "true" : null, on: { click: (e) => { if (!off) fn(e); } } }, label);
+};
 
 const dots = (n) => "●".repeat(Math.max(0, Math.round(n))) + "○".repeat(Math.max(0, 6 - Math.round(n)));
 
@@ -51,7 +56,7 @@ export function createUI(api) {
     api.setMenu(menu);
     // a menu opened again keeps its place: the pad does not jump back to the top
     if (!restoreFocus(name)) {
-      const first = modal.querySelector("button.primary:not(:disabled)") || focusables()[0];
+      const first = modal.querySelector('button.primary:not([aria-disabled="true"])') || focusables()[0];
       first?.focus({ preventScroll: true });
     }
   }
