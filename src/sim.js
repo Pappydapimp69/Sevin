@@ -952,7 +952,7 @@ export function makeCamp(sim) {
   const fresh = !sim.pitch || dist(sim.player, sim.pitch) >= 6;
   if (fresh) {
     // you are making it here: whoever was making it elsewhere stops
-    if (sim.pitch) for (const m of party(sim)) if (m.task === "pitch") m.task = "follow";
+    if (sim.pitch) for (const m of party(sim)) if (m.task === "pitch") m.task = "auto";
     const at = sim.site;
     sim.camp.pile -= CAMP_WOOD;                       // ten from the site's pile go into it
     sim.pitch = { x: at.x, y: at.y, left: PITCH_HOURS, place: placeName(sim.world, at.x, at.y), hands: [] };
@@ -1196,7 +1196,7 @@ function rescue(sim, id) {
   m.id = ms.id; sim.nextId = Math.max(sim.nextId, ms.id + 1);
   m.voice = ms.voice;                          // their own whistle, unbent
   m.sanity = Math.max(0.2, ms.sanity);
-  m.task = "follow";
+  m.task = sim.tutorial ? "follow" : "auto";
   // the original record entry is re-used: same id, the real one
   const i = sim.members.findIndex((x) => x.id === id);
   if (i >= 0) sim.members[i] = m; else sim.members.push(m);
@@ -1248,8 +1248,9 @@ export function pitchSite(sim, from = sim.player) {
 export const effTask = (m) => (m.task === "auto" ? m.autoTask || "camp" : m.task);
 
 /** A task ran out: back to camp, or for someone on auto, a fresh look. */
+// A set task that is finished, or can no longer be done, hands them back to their own judgement.
 function taskDone(m, next) {
-  if (m.task === "auto") { m.autoTask = null; m.autoUntil = 0; } else m.task = next;
+  m.task = "auto"; m.autoTask = null; m.autoUntil = 0;
 }
 
 /**
@@ -1309,7 +1310,7 @@ function pitchDone(sim) {
   for (const id of P.hands) { const h = byId(sim, id); if (h) practice(sim, h, "build"); }
   const [first, ...rest] = P.hands;
   note(sim, { verb: "pitched", actor: first, object: "camp", cls: "camp", x: P.x, y: P.y, withWhom: rest });
-  for (const m of party(sim)) if (m.task === "pitch") { m.task = "camp"; m.state = "idle"; }
+  for (const m of party(sim)) if (m.task === "pitch") { m.task = "auto"; m.autoTask = null; m.autoUntil = 0; m.state = "idle"; }
   say(sim, `Camp is up by the ${P.place}.`, "good");
   sim.events.push({ kind: "pitched" });
 }
@@ -1337,7 +1338,7 @@ export const roster = (sim) => sim.members.filter((m) => !m.gone && !m.home);
 export function setDawnPlan(sim, tasks) {
   const allowed = tasksNow(sim);
   for (const m of roster(sim)) {
-    const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "follow";
+    const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "auto";
     m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null; m.called = false;
     note(sim, { verb: "assigned", actor: m.id, object: TASK_LABEL[t], cls: "task", x: sim.camp.x, y: sim.camp.y, key: "assigned:" + m.id });
   }
