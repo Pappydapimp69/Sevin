@@ -35,6 +35,17 @@ At every design fork or judgement call (not once per task): `brain query` the
 problem in 1-2 keywords AND pressure-test the call with `/zanegpt` before
 building it. Calls made without that get re-checked and reported.
 
+## Don't ask; decide and report
+
+The owner builds forward and finds follow-up questions slow (Brain: sevin,
+questions). Ask ONLY if the answer changes what gets built this turn, nothing
+the owner said settles it, no default is defensible, and a wrong guess is
+costly to undo. Otherwise: state the lean, build it, and report it in one line
+as a call they can reverse. Never re-ask a number they gave; build it as a
+named constant and put any doubt in the report as a tuning note. Edges of
+features not built yet go in the working list, not the reply. An open Brain
+tension is surfaced in the report, not as a blocking question.
+
 ## Testing
 
 - `npm test` — pure tier, every change.
