@@ -178,7 +178,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
       grove.add(t);
     });
     grove.scale.setScalar(0.001); grove.visible = false; scene.add(grove);
-    const obj = { castle: castleMesh(THREE), chest: chestMesh(THREE), hole: holeMesh(THREE) };
+    const obj = { castle: castleMesh(THREE), chest: chestMesh(THREE), hole: holeMesh(THREE), cabin: cabinMesh(THREE), well: wellMesh(THREE), pylon: pylonLure(THREE), lamp: lampMesh(THREE), stones: stonesMesh(THREE), tent: tentMesh(THREE) };
     for (const o of Object.values(obj)) { o.visible = false; scene.add(o); }
     return { grove, obj, k: 0 };
   });
@@ -252,4 +252,55 @@ function holeMesh(THREE) {
   const rim = new THREE.Mesh(new THREE.RingGeometry(3, 3.7, 20), mat(THREE, 0x3a2e22)); rim.rotation.x = -Math.PI / 2; rim.position.y = 0.05;
   g.add(pit, rim);
   return g;
+}
+
+// the rest of what a dead end can become
+function cabinMesh(THREE) {
+  const g = new THREE.Group();
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(7, 4, 5), mat(THREE, 0x6b4a2e, 0x140c06)); walls.position.y = 2;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(5.6, 3, 4), mat(THREE, 0x3b2a20)); roof.rotation.y = Math.PI / 4; roof.position.y = 5.5;
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.2), new THREE.MeshBasicMaterial({ color: 0xffc060 })); win.position.set(1.8, 2.4, 2.52);
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.4), new THREE.MeshBasicMaterial({ color: 0x1a0f08 })); door.position.set(-1.4, 1.2, 2.52);
+  const l = new THREE.PointLight(0xffa850, 6, 20, 2); l.position.set(1.8, 2.4, 4);
+  g.add(walls, roof, win, door, l); return g;
+}
+function wellMesh(THREE) {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.7, 1.2, 12, 1, true), mat(THREE, 0x77746c)); ring.position.y = 0.6;
+  const water = new THREE.Mesh(new THREE.CircleGeometry(1.5, 12), new THREE.MeshBasicMaterial({ color: 0x6fb4ff })); water.rotation.x = -Math.PI / 2; water.position.y = 0.7;
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3, 0.2), mat(THREE, 0x4a3524)); post.position.set(-1.5, 1.5, 0);
+  const post2 = post.clone(); post2.position.x = 1.5;
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.2, 0.2), mat(THREE, 0x4a3524)); beam.position.y = 3;
+  g.add(ring, water, post, post2, beam); g.scale.setScalar(1.8); return g;
+}
+function pylonLure(THREE) {
+  // a pylon, lit blue: the honest instrument lies exactly when it is wanted
+  const g = new THREE.Group();
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 4, 6), mat(THREE, 0x6b7079)); col.position.y = 2;
+  const cr = new THREE.Mesh(new THREE.OctahedronGeometry(0.9), new THREE.MeshBasicMaterial({ color: 0x3a8bff })); cr.position.y = 5;
+  const l = new THREE.PointLight(0x3a8bff, 6, 22, 2); l.position.y = 5;
+  g.add(col, cr, l); g.scale.setScalar(1.6); return g;
+}
+function lampMesh(THREE) {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.4, 5), mat(THREE, 0x222222)); post.position.y = 1.7;
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe0a0 })); lamp.position.y = 3.5;
+  const l = new THREE.PointLight(0xffd890, 7, 24, 2); l.position.y = 3.5;
+  g.add(post, lamp, l); g.scale.setScalar(1.6); return g;
+}
+function stonesMesh(THREE) {
+  const g = new THREE.Group(), m = mat(THREE, 0x8a8a84, 0x101010);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2, st = new THREE.Mesh(new THREE.BoxGeometry(0.9, 3 + (i % 3) * 0.6, 0.6), m);
+    st.position.set(Math.cos(a) * 3.2, 1.6, Math.sin(a) * 3.2); st.rotation.y = -a; st.rotation.z = (i % 2 ? 0.05 : -0.05); g.add(st);
+  }
+  return g;
+}
+function tentMesh(THREE) {
+  // your own camp, pitched and lit, where you did not pitch it
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(new THREE.ConeGeometry(2.4, 2.6, 4), mat(THREE, 0xc9b27a, 0x2a2210)); t.rotation.y = Math.PI / 4; t.position.y = 1.3;
+  const f = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.1, 6), new THREE.MeshBasicMaterial({ color: 0xffa040 })); f.position.set(3, 0.6, 1);
+  const l = new THREE.PointLight(0xff8a3a, 7, 22, 2); l.position.set(3, 1.4, 1);
+  g.add(t, f, l); g.scale.setScalar(1.5); return g;
 }

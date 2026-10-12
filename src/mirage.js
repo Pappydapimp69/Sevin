@@ -18,7 +18,7 @@ import { stream, hash } from "./rng.js";
 import { mindLevel } from "./phantom.js";
 
 export const MIRAGE_MIND = 0.7;
-export const KINDS = ["castle", "chest", "hole"];
+export const KINDS = ["castle", "chest", "hole", "cabin", "well", "pylon", "lamp", "stones", "tent"];
 const SEAL_HOURS = 4.5;                  // game hours, ~90 s: the way back never stays shut
 
 export const blocked = (st) => !!st && (st.s === "sealed" || st.s === "shown");
