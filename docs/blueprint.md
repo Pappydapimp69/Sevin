@@ -248,7 +248,7 @@ whether you were right (Brain E24: a paid 1-of-2; E40: memory decides).
 | what | value | where |
 | --- | --- | --- |
 | game hour | 20 s | `SEC_PER_HOUR` |
-| deadfall | 90 person-hours in area 1, 44 after; cut skill +18%/level | `world.js`, `chopRate` |
+| deadfall | 45 person-hours in area 1, 22 after; cut skill +18%/level | `world.js`, `chopRate` |
 | gathering | an hour's chop, one piece | `WOOD_CHOP_HOURS` |
 | fire burn rate | x(1 + 0.5 per area of depth) | `burnRate` |
 | carrying | pieces per chop; wood carried when moving camp | `woodPerChop` |
