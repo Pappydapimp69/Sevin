@@ -51,7 +51,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
       for (let i = 0; i < world.trees.length; i++) {
         const t = world.trees[i], dx = t.x - p.x, dy = t.y - p.y, d2 = dx * dx + dy * dy;
         if (d2 > 144) continue;
-        if (stream(hash("bend", sim.seed, i))() > 0.45 || inGlow(sim, t.x, t.y)) continue;
+        if (stream(hash("bend", sim.seed, i))() > 0.45 || inGlow(sim, t.x, t.y) || sim.felled?.includes(i)) continue;
         const d = Math.sqrt(d2), k = smooth(clamp(1 - d / 12)) * amp;
         // lean toward the player: rotate about the horizontal axis perpendicular to the line to them
         const ax = new THREE.Vector3(dy / (d || 1), 0, dx / (d || 1));      // (three x, z = -y)

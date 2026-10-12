@@ -154,6 +154,7 @@ export function createAudio() {
         tone(70, 1.6, 0.12, 0, -25, "sawtooth");
         break;
       }
+      case "felled": for (let i = 0; i < 6; i++) setTimeout(() => burst({ freq: 300 - i * 30, dur: 0.15, gain: 0.3, type: "lowpass" }), i * 90); setTimeout(() => burst({ freq: 90, dur: 1.4, gain: 0.9, type: "lowpass" }), 700); break;
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }
@@ -196,7 +197,7 @@ export function createAudio() {
     if (sim.phantom?.crawl && Object.keys(sim.phantom.crawl).length && Math.random() < dt * 22) burst({ freq: 1500 + Math.random() * 3500, q: 5, dur: 0.02, gain: 0.14 + Math.random() * 0.12 });
 
     chopClock -= dt;
-    if (sim.work?.kind === "chop" && chopClock <= 0) { chopClock = 0.55; burst({ freq: 220, dur: 0.12, gain: 0.5, q: 2 }); burst({ freq: 1400, dur: 0.04, gain: 0.2 }); }
+    if ((sim.work?.kind === "chop" || sim.work?.kind === "fell") && chopClock <= 0) { chopClock = 0.55; burst({ freq: 220, dur: 0.12, gain: 0.5, q: 2 }); burst({ freq: 1400, dur: 0.04, gain: 0.2 }); }
   }
 
   function setVolume(v) { volume = v; if (master) master.gain.value = v; }

@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS, CAMP_WOOD } from "./sim.js";
+import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS, CAMP_WOOD, FELL_HOURS } from "./sim.js";
 import { accountFor, askableDays, shownWood, shownFire, mindLevel, voteOf, sureWord } from "./percept.js";
 import { stream as _stream, hash as _hash } from "./rng.js";
 import { CALL_GLYPH, glyphs } from "./voice.js";
@@ -601,6 +601,7 @@ function workText(w, sim) {
     case "chop": return "Chopping. Time runs fast. Move to stop.";
     case "markout": return `Marking out the camp  ${bar(Math.min(1, w.t / w.need))}`;
     case "make": return `Making camp  ${bar(sim.pitch ? 1 - sim.pitch.left / PITCH_HOURS : 1)}  (walk away to stop)`;
+    case "fell": return `Cutting down a tree  ${bar(1 - (sim.fellLeft?.[w.id] ?? FELL_HOURS) / FELL_HOURS)}  (move to stop)`;
     case "strike": return `Taking the camp down  ${bar(1 - w.left / STRIKE_HOURS)}  (move to stop)`;
     case "ask": return "Talking.";
     case "act": {

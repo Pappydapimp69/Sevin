@@ -47,7 +47,9 @@ export const CARRY_NO_CAMP = 10;      // with no camp, you carry the build wood
 // what a teammate can carry: one piece for every two points of Carrying, at least one
 export const memberCarry = (m) => Math.max(1, Math.floor((m.skills?.carry || 0) / 2));
 export const carryMax = (sim) => (sim.camp.up ? CARRY_MAX : CARRY_NO_CAMP);
-export const GLOW_MAX = 4;            // glowing branches you can carry, apart from wood
+export const GLOW_MAX = 4;
+export const FELL_HOURS = 3;          // felling a forest tree: three hours of your daylight
+export const FELL_WOOD = 3;           // ...for three pieces; the stump stays, and so does the forest            // glowing branches you can carry, apart from wood
 export const HAUL_CHANCE = 0.8;       // a gatherer hauls an old pile to the new camp this often
 export const CAMP_WOOD = 10;          // a camp is made from the team's wood
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
@@ -165,6 +167,8 @@ export function attach(sim, world) {
   sim.lifelines ||= { team: true, one: true, both: true };
   for (const m of sim.members) if (m.task === "pitch" && !sim.pitch) m.task = "auto";
   sim.campEvent = false;                 // a scene, never resumed from a save
+  sim.felled ||= [];                     // forest trees you have cut down (stumps)
+  sim.fellLeft ||= {};                   // hours left on a tree you started
   sim.piles ||= [];                      // woodpiles left behind where a camp stood
   if (sim.site === undefined) sim.site = null;   // where you said the camp goes: the drop zone
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
@@ -628,6 +632,22 @@ function tickWork(sim, hours, dt) {
     P.left -= hours * buildRate("you", sim);
     P.hands.includes("you") || P.hands.unshift("you");
     if (P.left <= 0) pitchDone(sim);
+  } else if (w.kind === "fell") {
+    const t = sim.world.trees[w.id];
+    if (!t || dist(sim.player, t) > 3.5) { sim.work = null; return; }
+    sim.fellLeft[w.id] = (sim.fellLeft[w.id] ?? FELL_HOURS) - hours;
+    if (sim.fellLeft[w.id] <= 0) {
+      delete sim.fellLeft[w.id];
+      sim.felled.push(w.id);
+      sim.work = null;
+      // into your arms what fits; the rest lies by the stump
+      const room = Math.max(0, carryMax(sim) - Phantom.shownWood(sim)), take = Math.min(room, FELL_WOOD);
+      sim.player.wood += take;
+      for (let k = 0; k < FELL_WOOD - take; k++) sim.gdrops.push({ id: sim.gdrops.length, truth: "stick", shown: "stick", x: t.x + (k - 1) * 0.7, y: t.y - 1.2, d: today(sim), taken: false });
+      note(sim, { verb: "felled", actor: "you", object: "tree", cls: "wood", x: t.x, y: t.y });
+      say(sim, take < FELL_WOOD ? `The tree comes down. You take ${take}; ${FELL_WOOD - take} lie by the stump.` : `The tree comes down. You take ${take} wood.`, "good");
+      sim.events.push({ kind: "felled" });
+    }
   } else if (w.kind === "strike") {
     w.left -= hours;
     if (w.left <= 0) finishCampWork(sim, w);
@@ -703,6 +723,15 @@ export function actionTargets(sim, tolerance = 1) {
     // a glow stick wakes only in the campfire
     if (p.glows?.length && sim.camp.lit && !Grove.glowing(sim)) out.push({ kind: "snap", id: 0, x: sim.camp.x, y: sim.camp.y + 0.3, h: 1.2, label: "Hold a glowing branch to the fire" });
   }
+  // a forest tree within reach: cut it down for wood. The forest stays a wall; a stump is a stump.
+  if (!sim.tutorial) {
+    let best = null, bd = R(2.6);
+    for (let i = 0; i < W.trees.length; i++) {
+      const t = W.trees[i], d = dist(t, p);
+      if (d < bd && !sim.felled.includes(i)) { bd = d; best = i; }
+    }
+    if (best != null) out.push({ kind: "fell", id: best, x: W.trees[best].x, y: W.trees[best].y, h: 1.4, label: sim.work?.kind === "fell" ? "Stop cutting" : "Cut down the tree" });
+  }
   // the far side is a place, not a thing: no facing needed
   if (W.farSide && dist(W.farSide, p) < W.farSide.r) out.push({ kind: "home", id: 0, x: p.x, y: p.y, h: 0, label: "Light a pylon home", area: true });
   return out;
@@ -745,7 +774,7 @@ export function begin(sim, target = null, tolerance = 1) {
   if (sim.work?.kind === "act") return null;            // already at it
   const t = target || resolveAction(sim, tolerance);
   if (!t) return null;
-  if (t.kind === "chop") return act(sim, t, tolerance);
+  if (t.kind === "chop" || t.kind === "fell") return act(sim, t, tolerance);
   sim.work = { kind: "act", target: { kind: t.kind, id: t.id }, label: ACT_VERB[t.kind] || t.label, t: 0, need: ACT_TIME[t.kind] ?? ACT_SECONDS, tol: tolerance };
   return { kind: "begin", of: t.kind };
 }
@@ -765,6 +794,9 @@ export function act(sim, target = null, tolerance = 1) {
       break;
     case "chop":
       sim.work = sim.work?.kind === "chop" ? null : { kind: "chop", id: a.id };
+      break;
+    case "fell":
+      sim.work = sim.work?.kind === "fell" ? null : { kind: "fell", id: a.id };
       break;
     case "light":
     case "feed": if (a.phantom) Phantom.feedPhantom(sim); else tendFire(sim); break;
@@ -1336,7 +1368,7 @@ export function tick(sim, dt, input = {}) {
   // takes its hours at the pace of the world: an hour to make camp is an hour.
   // Work that spends the day runs the day fast: chopping, asking, making or taking down camp.
   // After dark the clock keeps its own pace.
-  const fast = sim.work && ["chop", "ask", "make", "strike"].includes(sim.work.kind);
+  const fast = sim.work && ["chop", "ask", "make", "strike", "fell"].includes(sim.work.kind);
   const speed = fast && (sim.work.kind === "ask" || !isNight(sim.time)) && !(moving && sim.work.kind === "make") ? WORK_SPEED : 1;
   let hours = (dt * speed) / secPerHour(sim.time);
   const before = sim.time;

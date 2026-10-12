@@ -263,6 +263,18 @@ export function createRenderer(canvas) {
     scene.fog.near = scene.fog.far * 0.15;
     const ill = B.ill.update(sim, dt);
     B.grove.update(sim);
+    // felled trees: a stump, and no crown
+    if ((B.felledN || 0) !== (sim.felled?.length || 0)) {
+      const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), V = new THREE.Vector3(), Sc = new THREE.Vector3();
+      for (const i of sim.felled.slice(B.felledN || 0)) {
+        const t = sim.world.trees[i], slot = B.treeSlots[i];
+        if (!t || !slot) continue;
+        M.compose(V.set(t.x, 0.15 * t.s, -t.y), Q, Sc.set(t.s * 1.3, 0.1 * t.s, t.s * 1.3)); B.trunkInst.setMatrixAt(i, M);
+        M.compose(V.set(t.x, -50, -t.y), Q, Sc.set(0.001, 0.001, 0.001)); slot.arr.setMatrixAt(slot.idx, M);
+      }
+      B.trunkInst.instanceMatrix.needsUpdate = true; for (const c of B.crowns) c.instanceMatrix.needsUpdate = true;
+      B.felledN = sim.felled.length;
+    }
     // the fruit: the real world goes small and dim, and the view narrows
     if (sim.fruit && sim.time < sim.fruit.until) { ill.lightMul *= 0.4; ill.fogMul *= 0.55; ill.fovAdd -= 14; }
     if (ill.skyTint) { sky.lerp(new THREE.Color(0x6f8a5c), ill.skyTint * day + ill.skyTint * 0.2); scene.background = sky; scene.fog.color = sky; }
