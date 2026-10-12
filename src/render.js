@@ -285,7 +285,7 @@ export function createRenderer(canvas) {
       } else if (ps.spent) col = 0x2a2a2a;
       // a mind far gone sees the dead ones burn blue: the honest instrument lies exactly when it is needed
       const really = ps.litAt != null && sim.time - ps.litAt < PYLON_HOURS;
-      if (seesPylonLit(sim) && !really) { col = 0x3a8bff; em = col; }
+      if (seesPylonLit(sim, sim.world.pylons[i]) && !really) { col = 0x3a8bff; em = col; }
       crystal.material.color.set(col); crystal.material.emissive.set(em);
       g.userData.light.intensity = em ? 2.5 : 0;
       g.userData.light.color.set(em || 0);

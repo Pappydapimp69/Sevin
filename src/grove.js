@@ -23,6 +23,7 @@ import { stream, hash } from "./rng.js";
 
 export const ZONE_R = 12;                  // metres round a rescue spot nobody else will enter
 export const GLOW_HOURS = 3;
+export const GLOW_R = 14;                  // metres: what a lit branch's light reaches
 export const FRUIT_HOURS = 6;
 const FRUIT_ODDS = [0, 0.3, 0.5, 0.75, 1];
 const DAWN = 6, WAKE = 2;
@@ -178,6 +179,8 @@ export function snap(sim) {
   } else reveal(sim, s);
 }
 export const glowing = (sim) => sim.player.glowUntil != null && sim.time < sim.player.glowUntil;
+/** Inside the light of a lit branch: what the mind makes up does not hold there. */
+export const inGlow = (sim, x, y) => glowing(sim) && Math.hypot(x - sim.player.x, y - sim.player.y) < GLOW_R;
 
 /** Eat the fruit: for six hours the real world dims and what the mind makes up shows full. */
 export function eat(sim) {

@@ -16,6 +16,7 @@
 
 import { stream, hash } from "./rng.js";
 import { mindLevel } from "./phantom.js";
+import { inGlow } from "./grove.js";
 
 export const MIRAGE_MIND = 0.7;
 export const KINDS = ["castle", "chest", "hole", "cabin", "well", "pylon", "lamp", "stones", "tent"];
@@ -62,6 +63,21 @@ export function tickMirage(sim, dt, input = {}) {
         // Walk at it and it draws away: the distance does not close, so the world
         // seems to stretch. Nothing about your movement changes.
         const o = st.obj, dnow = Math.hypot(o.x - p.x, o.y - p.y);
+        // in a lit branch's light it holds still, and can be reached
+        if (inGlow(sim, o.x, o.y)) {
+          st.dist = dnow; st.stretch = 0;
+          if (dnow < 2.5) {
+            const k = kindFor(sim, d);
+            st.s = "gone"; delete st.obj; setSeal(sim, d, false);
+            sim.events.push({ kind: "gone" });
+            if (k === "chest") {
+              const r = stream(hash("chest", sim.seed, d.id))();
+              sim.gdrops.push({ id: sim.gdrops.length, truth: r < 0.5 ? "glow" : "stick", x: p.x + d.inDir.x, y: p.y + d.inDir.y, d: 0, taken: false, shown: r < 0.5 ? "branch" : "stick" });
+              sim.msgs.push({ t: sim.time, text: "The lid is real under your hands. Inside, one thing.", kind: "good" });
+            } else sim.msgs.push({ t: sim.time, text: "You reach it, and there is nothing there but the clearing.", kind: "info" });
+          }
+          break;
+        }
         const closed = Math.max(0, st.dist - dnow);
         if (closed > 0) { o.x += d.inDir.x * closed * 1.15; o.y += d.inDir.y * closed * 1.15; }
         const nd = Math.hypot(o.x - p.x, o.y - p.y);

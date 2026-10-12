@@ -11,18 +11,16 @@
 
 import { stream, hash } from "./rng.js";
 import { canStand, hourOf, today, SEC_PER_HOUR } from "./sim.js";
+import { inGlow } from "./grove.js";
 
 export const STICK_MIND = 0.75;      // below this the ground starts offering things
 export const FIRE_MIND = 0.55;       // below this a dead fire can still seem to burn
 export const fresh = () => ({ taken: [], extra: 0, fire: 0, slither: {}, watch: {} });
 
-// What the mind is making up, right now. A lit glow stick holds it all off; the
-// fruit puts its own meter in place of yours (superficial: yours is untouched).
-const mind = (sim) => {
-  if (sim.fruit && sim.time < sim.fruit.until) return sim.fruit.meter;
-  if (sim.player.glowUntil != null && sim.time < sim.player.glowUntil) return 1;
-  return sim.player.sanity;
-};
+// What the mind is making up, right now. The fruit puts its own meter in place
+// of yours (superficial: yours is untouched). A lit branch holds it off only
+// inside its light (inGlow), so each thing checks where it stands.
+const mind = (sim) => (sim.fruit && sim.time < sim.fruit.until ? sim.fruit.meter : sim.player.sanity);
 /** The level of the failing mind as a number, for the world that draws it. Never shown. */
 export const mindLevel = mind;
 
@@ -61,7 +59,7 @@ export function phantomSticks(sim) {
     const has = r(), x = cx * CELL_M + r() * CELL_M, y = cy * CELL_M + r() * CELL_M, rot = r() * 6.28;
     if (has >= density) continue;
     const id = `p${day}:${cx}:${cy}`;
-    if (ph.taken.includes(id) || sl[id] || !canStand(sim, x, y)) continue;
+    if (ph.taken.includes(id) || sl[id] || !canStand(sim, x, y) || inGlow(sim, x, y)) continue;
     out.push({ id, x, y, rot, kind: kindOf(sim, id) });
   }
   return out;
@@ -75,7 +73,7 @@ export function shownFire(sim) {
   const c = sim.camp, ph = sim.phantom;
   if (!c.up) return { up: false, lit: false, fire: 0, phantom: false };
   if (c.lit) return { up: true, lit: true, fire: c.fire, phantom: false };
-  if (ph && ph.fire > 0 && mind(sim) < FIRE_MIND) return { up: true, lit: true, fire: ph.fire, phantom: true };
+  if (ph && ph.fire > 0 && mind(sim) < FIRE_MIND && !inGlow(sim, c.x, c.y)) return { up: true, lit: true, fire: ph.fire, phantom: true };
   return { up: true, lit: false, fire: 0, phantom: false };
 }
 
@@ -150,7 +148,7 @@ export function phantomWatchers(sim) {
     const has = r(), x = cx * WATCH_CELL + r() * WATCH_CELL, y = cy * WATCH_CELL + r() * WATCH_CELL;
     if (has >= density) continue;
     const id = `w${day}:${cx}:${cy}`;
-    if (ph.taken.includes(id) || (ph.watch && ph.watch[id]) || !canStand(sim, x, y)) continue;
+    if (ph.taken.includes(id) || (ph.watch && ph.watch[id]) || !canStand(sim, x, y) || inGlow(sim, x, y)) continue;
     out.push({ id, x, y, walking: false });
   }
   return out;
@@ -169,4 +167,4 @@ function tickWatchers(sim) {
 
 /** A dead pylon looks lit to a mind this far gone: the one honest instrument stops being honest. */
 export const PYLON_MIND = 0.45;
-export const seesPylonLit = (sim) => mind(sim) < PYLON_MIND;
+export const seesPylonLit = (sim, at) => mind(sim) < PYLON_MIND && !(at && inGlow(sim, at.x, at.y));

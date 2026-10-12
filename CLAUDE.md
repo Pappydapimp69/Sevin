@@ -29,6 +29,12 @@ none of the code. Read `docs/blueprint.md` first.
 - Only `save.js` touches `localStorage`, keys `sevin:*` (one origin per
   GitHub account on Pages).
 
+## Every intersection
+
+At every design fork or judgement call (not once per task): `brain query` the
+problem in 1-2 keywords AND pressure-test the call with `/zanegpt` before
+building it. Calls made without that get re-checked and reported.
+
 ## Testing
 
 - `npm test` — pure tier, every change.

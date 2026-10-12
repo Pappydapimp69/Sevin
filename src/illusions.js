@@ -23,6 +23,7 @@ import { daylight } from "./sim.js";
 import { stream, hash } from "./rng.js";
 import { CELL } from "./world.js";
 import { kindFor } from "./mirage.js";
+import { inGlow } from "./grove.js";
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const smooth = (x) => x * x * (3 - 2 * x);
@@ -50,7 +51,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
       for (let i = 0; i < world.trees.length; i++) {
         const t = world.trees[i], dx = t.x - p.x, dy = t.y - p.y, d2 = dx * dx + dy * dy;
         if (d2 > 144) continue;
-        if (stream(hash("bend", sim.seed, i))() > 0.45) continue;
+        if (stream(hash("bend", sim.seed, i))() > 0.45 || inGlow(sim, t.x, t.y)) continue;
         const d = Math.sqrt(d2), k = smooth(clamp(1 - d / 12)) * amp;
         // lean toward the player: rotate about the horizontal axis perpendicular to the line to them
         const ax = new THREE.Vector3(dy / (d || 1), 0, dx / (d || 1));      // (three x, z = -y)
@@ -86,7 +87,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
         const on = r() < 0.55, rx = gx * 20 + r() * 20, ry = gy * 20 + r() * 20;
         if (!on || m > 0.68 || slot >= rocks.length) continue;
         const cx = Math.floor(rx / CELL), cy = Math.floor(ry / CELL);
-        if (cx < 0 || cy < 0 || cx >= world.w || cy >= world.h || !world.walk[cy * world.w + cx]) continue;
+        if (cx < 0 || cy < 0 || cx >= world.w || cy >= world.h || !world.walk[cy * world.w + cx] || inGlow(sim, rx, ry)) continue;
         const R = rocks[slot++], key = gx + "," + gy;
         const d = Math.hypot(rx - p.x, ry - p.y);
         R.g.visible = d < 24;
@@ -129,7 +130,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
     const gx = Math.floor(p.x / 60), gy = Math.floor(p.y / 60), r = stream(hash("lure", sim.seed, gx, gy));
     if (r() > 0.7) return;
     const x = gx * 60 + 10 + r() * 40, y = gy * 60 + 10 + r() * 40, d = Math.hypot(x - p.x, y - p.y);
-    if (d < 12 || d > 75) return;                    // out as you reach it
+    if (d < 12 || d > 75 || inGlow(sim, x, y)) return;                    // out as you reach it
     lure.visible = true; lure.position.set(x, 0.8, -y);
     lure.scale.set(1, 1 + Math.sin(clock * 11) * 0.12, 1);
     lureLight.position.set(x, 1.2, -y); lureLight.intensity = 5 * smooth(clamp((d - 12) / 6));
@@ -153,7 +154,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
         if (d2 < 36 || d2 > 484) continue;
         if (stream(hash("eyes", sim.seed, i))() > 0.03) continue;
         const d = Math.sqrt(d2), look = (dx * fx + dy * fy) / d;
-        if (look > 0.97) continue;                   // look straight at them and they are shut
+        if (look > 0.97 || inGlow(sim, t.x, t.y)) continue;                   // look straight at them and they are shut
         const g = eyes[n++];
         g.visible = true;
         g.position.set(t.x - (dx / d) * 0.3, 2.3, -(t.y - (dy / d) * 0.3));

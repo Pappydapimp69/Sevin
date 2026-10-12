@@ -1212,6 +1212,9 @@ export function tick(sim, dt, input = {}) {
     sim.events.push({ kind: "answer", id: ms.id, x: ms.x, y: ms.y, voice: ms.voice, distress: !!(tree && e.drops > 0), ctx: whistleCtx(sim, { ...ms, slot: ms.slot }) });
   }
   Grove.tickFruit(sim, hours, 1 + areaAt(sim, p.y) * 0.6);
+  // a whistle from the dark on a quiet night: nobody is out there
+  const fw = sim.falseWhistle;
+  if (fw && sim.time >= fw.at) { sim.falseWhistle = null; sim.events.push({ kind: "answer", x: fw.x, y: fw.y, voice: fw.voice, ctx: whistleCtx(sim, { x: fw.x, y: fw.y, slot: fw.slot }) }); }
 
   // the fire burns whenever it is lit
   if (sim.camp.lit) {

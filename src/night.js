@@ -199,8 +199,18 @@ export function sleep(sim) {
   sim.night = { d, rWeather, rCall, rFalse, rBear, fireHeld, rough, taken: taken ? taken.id : null, woke: false };
   Grove.nightFalls(sim, d);
   // whoever is out there calls, a little after you wake: that is how you know
+  // (Brain: a call without a name; false calls keep a rescue cue from announcing.)
+  // Quiet nights sometimes carry a whistle too: someone's voice, from nowhere.
   let k = 0;
   for (const ms of sim.missing) if (!ms.found && !ms.lost) ms.answerAt = sim.time + 0.012 + 0.01 * k++;
+  if (!k) {
+    const r = stream(hash("falsewake", sim.seed, d));
+    const near = party(sim);
+    if (r() < 0.35 && near.length) {
+      const who = near[Math.floor(r() * near.length)], a = r() * Math.PI * 2, dd = 30 + r() * 25;
+      sim.falseWhistle = { at: sim.time + 0.012, x: p.x + Math.cos(a) * dd, y: p.y + Math.sin(a) * dd, voice: who.voice, slot: who.slot };
+    }
+  }
 
   sim.asleep = false;
   sim.wantSleep = false;
