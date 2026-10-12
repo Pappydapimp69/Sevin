@@ -55,6 +55,7 @@ export function swapOut(sim, taken, ang01, d01, d) {
  * the night so that this is true. Derived from the seed; draws nothing.
  */
 export const KEYSTONE_DAY = 3;
+export const QUIET_NIGHTS = 3;          // nights of days 1-3: slept straight through, nobody taken
 export function startKeystone(sim, d) {
   const k = sim.keystone;
   const people = party(sim);
@@ -178,7 +179,8 @@ export function sleep(sim) {
     0.22 + (shielded(sim, area) ? 0 : 0.07 * area) + (fireHeld && !rough ? 0 : 0.25) + 0.08 * fakesHeld +
     0.25 * (1 - reals.reduce((s, m) => s + m.sanity, 0) / Math.max(1, reals.length)) -
     Math.min(0.18, 0.03 * watchSkill);
-  const P = d === 1 ? 0 : Math.max(0, Math.min(0.85, pressure));
+  // the first nights take nobody (the third morning brings the first swap); waking at two starts after
+  const P = d <= QUIET_NIGHTS ? 0 : Math.max(0, Math.min(0.85, pressure));
   let taken = null;
   if (rTake < P && reals.length > 1) {
     const weights = reals.map((m) => takeWeight(m, { out: !atCamp(sim, m), fireHeld }));
@@ -200,6 +202,11 @@ export function sleep(sim) {
   // everyone not on watch is asleep until first light
   for (const m of party(sim)) { m.sleeping = !m.watch; m.bedAt = null; m.called = false; m.summonUntil = null; m.state = "idle"; }
   sim.night = { d, rWeather, rCall, rFalse, rBear, fireHeld, rough, taken: taken ? taken.id : null, woke: false };
+  if (d <= QUIET_NIGHTS) {
+    // a quiet night: no wake, sleep on to first light (the draws are made all the same)
+    passNight(sim, DAWN - WAKE);
+    return dawn(sim);
+  }
   Grove.nightFalls(sim, d);
   // whoever is out there calls, a little after you wake: that is how you know
   // (Brain: a call without a name; false calls keep a rescue cue from announcing.)
