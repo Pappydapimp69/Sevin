@@ -869,7 +869,8 @@ export function canMakeCamp(sim) {
 }
 export function makeCamp(sim) {
   if (!canMakeCamp(sim)) return false;
-  if (!sim.pitch || dist(sim.player, sim.pitch) >= 6) {
+  const fresh = !sim.pitch || dist(sim.player, sim.pitch) >= 6;
+  if (fresh) {
     // you are making it here: whoever was making it elsewhere stops
     if (sim.pitch) for (const m of party(sim)) if (m.task === "pitch") m.task = "follow";
     const at = sim.site;
@@ -877,7 +878,9 @@ export function makeCamp(sim) {
     sim.pitch = { x: at.x, y: at.y, left: PITCH_HOURS, place: placeName(sim.world, at.x, at.y), hands: [] };
   }
   sim.player.carryingKit = false;
-  sim.work = { kind: "make" };
+  // a new camp is marked out first: five seconds where you stand, then it is the builders' work
+  // (stand at it and use the camp menu again to lend your own hands)
+  sim.work = fresh ? { kind: "markout", t: 0, need: 5 } : { kind: "make" };
   return true;
 }
 export function canStrikeCamp(sim) {
@@ -1226,7 +1229,14 @@ export function tick(sim, dt, input = {}) {
 
   // movement
   // picking up wood holds you still until it is in your hands
-  const pickingUp = sim.work?.kind === "act" && (sim.work.target?.kind === "stick" || sim.work.target?.kind === "gpick");
+  const pickingUp = (sim.work?.kind === "act" && (sim.work.target?.kind === "stick" || sim.work.target?.kind === "gpick")) || sim.work?.kind === "markout";
+  if (sim.work?.kind === "markout") {
+    sim.work.t += dt;                              // real seconds
+    if (sim.work.t >= sim.work.need) {
+      sim.work = null;
+      say(sim, "The camp is marked out. The builders will put it up; stand at it and use the camp menu to lend a hand.", "good");
+    }
+  }
   const fwd = pickingUp ? 0 : input.fwd || 0, side = pickingUp ? 0 : input.side || 0;
   const moving = Math.abs(fwd) + Math.abs(side) > 0.05;
   if (moving) {

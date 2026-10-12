@@ -531,6 +531,7 @@ const bar = (f, n = 12) => { const k = Math.round(Math.max(0, Math.min(1, f)) * 
 function workText(w, sim) {
   switch (w.kind) {
     case "chop": return "Chopping. Time runs fast. Move to stop.";
+    case "markout": return `Marking out the camp  ${bar(Math.min(1, w.t / w.need))}`;
     case "make": return `Making camp  ${bar(sim.pitch ? 1 - sim.pitch.left / PITCH_HOURS : 1)}  (move to stop)`;
     case "strike": return `Taking the camp down  ${bar(1 - w.left / STRIKE_HOURS)}  (move to stop)`;
     case "ask": return "Talking.";
