@@ -209,7 +209,9 @@ daylight, any time; everyone starts on auto.
 
 Like an ocarina. Everyone has a call: four notes, up/right/down/left, from the
 seed and their id; a fake's is the real one with one note moved. In the evening
-at the fire, "Learn their calls": each one awake whistles theirs and you play it
+at the fire, the call round (part of ending the day: talk, the song, then each
+whistles their call; also "Learn their calls" on the camp menu, and taught in
+the training with Orla and Benet): each one awake whistles theirs and you play it
 back; learned, it is remembered under the NAME, as heard from whoever whistled
 it. Hold the whistle button for the pad (a tap is still a plain whistle):
 play four notes and whistle it. Whoever's call it is answers with their own

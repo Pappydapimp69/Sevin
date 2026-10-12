@@ -131,16 +131,16 @@ const campVerbs = {
     S.pass(sim, 0.5);
     return vs.length * 2600;
   },
-  learn: () => {
+  learn: (after) => {
     const people = S.party(sim).filter((m) => S.atCamp(sim, m) && !m.sleeping);
-    if (!people.length) { S.say(sim, "Nobody is up to whistle."); return; }
+    if (!people.length) { S.say(sim, "Nobody is up to whistle."); after?.(); return; }
     ui.learn(sim, people, {
       callOf: (m) => S.callFor(sim, m),
       play: (m) => audio.event({ kind: "call", voice: m.voice, call: S.callFor(sim, m) }, sim),
       note: (k) => audio.event({ kind: "padnote", key: k }, sim),
       // remembered under the name, as heard from whoever whistled it
       learned: (m) => { (sim.learned ||= {})[m.name] = S.callFor(sim, m); },
-      done: () => S.pass(sim, 0.25),
+      done: () => { S.pass(sim, 0.25); after?.(); },
     });
   },
   round: () => {
@@ -246,7 +246,8 @@ function campEvening(then) {
     if (!sim) return;
     S.say(sim, "Then somebody starts the song.", "talk");
     const wait = campVerbs.sing();
-    setTimeout(() => { if (!sim) return; sim.campEvent = false; if (!scene) then(); }, wait + 1500);
+    // then each one whistles their call, and you play it back (skip it with {back})
+    setTimeout(() => { if (!sim) return; campVerbs.learn(() => { sim.campEvent = false; if (!scene) then(); }); }, wait + 1500);
   }, t0);
 }
 
@@ -368,6 +369,8 @@ function frame(now) {
       S.tick(sim, dt, inp);
       audio.frame(sim, dt, Math.abs(inp.fwd) + Math.abs(inp.side) > 0.1, inp.sprint);
       if (sim.wantSleep) { sim.wantSleep = false; goToSleep(false); }
+      // the training's call round comes to you; closed unfinished, it comes back
+      if (sim.tutorial && tutorialStep(sim)?.id === "learn" && !ui.open && performance.now() > (sim.tut.learnAt || 0)) { sim.tut.learnAt = performance.now() + 4000; campVerbs.learn(); }
       if (sim.wantDawn) { sim.wantDawn = false; dawn(sim); Save.saveRun(sim); if (sim.plan.pending) openPending(); }
       if (sim.plan.pending && !ui.open) openPending();
       // someone says something now and then

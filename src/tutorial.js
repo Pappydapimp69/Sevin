@@ -44,8 +44,13 @@ export const STEPS = [
     done: (s) => s.camp.lit,
   },
   {
-    id: "call", verb: "call",
-    text: "Press {call} to whistle: everyone in earshot whistles back, each in their own way (learn them). Whistle again within three seconds and the nearest stops what they are doing and comes to you for half an hour.",
+    id: "learn", verb: "call",
+    text: "Everyone whistles their own call: four notes. Orla and Benet whistle theirs; play each one back on the pad with {movepad}. Out there, evenings at the fire are where you learn your team's calls.",
+    done: (s) => Object.keys(s.learned || {}).length >= 2,
+  },
+  {
+    id: "callone", verb: "call",
+    text: "Now call one of them by name: {padcall} for the pad, play Orla's or Benet's call, and whistle it. Whoever's call it is answers, and by day comes to you. A quick {call} is a plain whistle that everyone near answers.",
     done: (s) => s.members.some((m) => m.summonUntil != null && s.time < m.summonUntil),
   },
   {
