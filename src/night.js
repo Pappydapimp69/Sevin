@@ -257,7 +257,7 @@ export function dawn(sim) {
   sim.asleep = false;
   sim.wantSleep = false;
   sim.wantDawn = false;
-  sim.plan.pending = !camp.up || atCamp(sim, p) ? "dawn" : null;
+  sim.plan.pending = null;                       // the team carries on with what they were doing
   // two of one person cannot both see the morning: choose
   if (twins(sim).length) sim.plan.pending = "choose";
   sim.plan.day = nd;

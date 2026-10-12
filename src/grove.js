@@ -139,6 +139,7 @@ export function pick(sim, id) {
     it.taken = true; p.glows.push({ truth: it.truth, msId: it.msId, name: it.name });
     sim.msgs.push({ t: sim.time, text: "A branch, faintly glowing. It wants a fire to wake it.", kind: "info" });
   } else if (it.shown === "stick") {
+    if (p.wood >= 5) { sim.msgs.push({ t: sim.time, text: "Your arms are full.", kind: "info" }); return; }
     it.taken = true; p.wood += 1;
   }
   sim.events.push({ kind: "stick" });

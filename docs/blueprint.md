@@ -194,6 +194,15 @@ a person stands one more day.
 - At 06:00 what lies on the ground turns true: glow sticks go to plain wood,
   limbs are limbs.
 
+## Wood and the first camp
+
+The team's wood is one store (`camp.pile`): at the camp, or with you and the kit
+when there is none; taking camp down keeps it. Only you make a camp, and it
+takes 10 of that wood (the store first, then your arms). Nobody carries more
+than 5. A run starts with everyone using their judgement and no task screen;
+before the first camp, its wood is what they go for. Tasks are set at camp, in
+daylight, any time, from the camp menu.
+
 ## The morning choice (`ui.choose`, `percept.voteOf`)
 
 Two of one person cannot both see the morning. At dawn, if a rescued one sits

@@ -4,7 +4,7 @@
 // One modal at a time. While a modal is open the game is paused and the mouse
 // is released; closing it is always one click or Esc.
 
-import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
+import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS, CAMP_WOOD } from "./sim.js";
 import { accountFor, askableDays, shownWood, shownFire, mindLevel, voteOf, sureWord } from "./percept.js";
 import { stream as _stream, hash as _hash } from "./rng.js";
 import { BEARINGS } from "./night.js";
@@ -198,21 +198,18 @@ export function createUI(api) {
     });
     const call = sim.call && sim.call.day === today(sim) ? h("p", { class: "warn" }, `At first light someone heard a voice from the ${BEARINGS[seenBearing(sim, sim.call.bearing)]}.`) : null;
     show("plan",
-      h("h2", {}, `Dawn, day ${today(sim)}`),
+      h("h2", {}, "The team's work"),
       h("p", {}, `Weather: ${sim.weather[today(sim)]}. ` + (sim.camp.up
-        ? `The woodpile has ${sim.camp.pile}. Set the day's work. Out there you can only whistle people back to you.`
+        ? `The woodpile has ${sim.camp.pile}. Set anyone's work, any time in daylight, here at camp. Out there you can only whistle people back to you.`
         : sim.pitch
           ? `Camp is still going up by the ${sim.pitch.place}. Set the day's work.`
-          : sim.campStruck
-            ? `There is no camp. You took it down, so only you can put it up again: use ${KEYS[api.scheme()].camp}, wherever you stand, before dark or everyone sleeps in the open.`
-            : `There is no camp yet. Somebody has to make one before dark, or everyone sleeps in the open. ` +
-            `Whoever you set to making camp takes the kit to the ${pitchSite(sim)?.kind || "nearest clearing"} and puts it up. Or put it up yourself with ${KEYS[api.scheme()].camp}, wherever you stand.`)),
+          : `There is no camp. Only you can make one (${KEYS[api.scheme()].camp}), and it takes ${CAMP_WOOD} of the team's wood.`)),
       call,
       h("table", { class: "grid" }, rows),
       h("p", { class: "small" }, "On the deadfall (Cutting): they cut until their shift ends. Gathering wood (Carrying): they bring loads back to the pile" + (sim.camp.up ? "" : " (to you, until there is one)") + ". " +
-        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "Making camp (Building): most of a morning alone, about an hour with everyone. ") + "With you: they follow and lend a hand to whatever you are doing. " +
-        "Using their judgement: each hour they do what the team needs most that they are good for (make camp, keep the pile up, cut, keep the fire), and spread out."),
-      h("div", { class: "row" }, btn("Begin the day", () => { onDone(choice); close(); }, "primary")),
+        (sim.camp.up ? "Keeping camp (Firecraft): they stay, bring in deadwood and keep the fire. " : "") + "With you: they follow and lend a hand to whatever you are doing. " +
+        "Using their judgement: each hour they do what the team needs most that they are good for (wood for the camp, cut, keep the fire), and spread out. Everyone starts this way."),
+      h("div", { class: "row" }, btn("Done", () => { onDone(choice); close(); }, "primary")),
     );
   }
 
@@ -339,11 +336,12 @@ export function createUI(api) {
     const items = [];
     if (sim.camp.up) {
       items.push(btn("Take the camp down", () => { close(); v.strike(); }, v.canStrike() ? "" : "disabled"));
-      if (atCamp(sim, sim.player) && !sim.keystone.active && hourOf(sim.time) < 10 && sim.plan.dawnDay !== today(sim)) items.push(btn("Set the day's work", () => { close(); v.plan(); }));
+      if (atCamp(sim, sim.player) && !sim.keystone.active && !isNight(sim.time)) items.push(btn("Set the team's work", () => { close(); v.plan(); }));
     } else {
       const here = sim.pitch && Math.hypot(sim.pitch.x - sim.player.x, sim.pitch.y - sim.player.y) < 5;
       items.push(btn(here ? "Keep making camp" : "Make camp here", () => { close(); v.make(); }, v.canMake() ? "primary" : "disabled"));
-      if (!v.canMake()) items.push(h("p", { class: "small" }, "A camp needs open ground all round."));
+      const wood = sim.camp.pile + sim.player.wood, paid = sim.pitch && here;
+      if (!v.canMake()) items.push(h("p", { class: "small" }, !paid && wood < CAMP_WOOD ? `A camp takes ${CAMP_WOOD} wood. The team has ${wood}.` : "A camp needs open ground all round."));
     }
     // the evening at the fire, until ten
     if (v.evening()) {
@@ -362,7 +360,7 @@ export function createUI(api) {
     if (v.canWalkOut()) items.push(btn("Walk out of the woods", () => { close(); v.walkOut(); }, "primary"));
     items.push(btn(isNight(sim.time) || hourOf(sim.time) >= DUSK - 1 ? "Sleep" : "Sleep (not until dusk)", () => { close(); v.sleep(); }, v.canSleep() ? "" : "disabled"));
     show("camp", h("h2", {}, "Camp"),
-      h("p", {}, sim.camp.up ? `Camp is up. The fire is ${fireWords(sim.camp)}. The pile has ${sim.camp.pile}.` : `No camp. You carry ${sim.player.wood} wood${sim.player.carryingKit ? " and the kit" : ""}.`),
+      h("p", {}, sim.camp.up ? `Camp is up. The fire is ${fireWords(sim.camp)}. The pile has ${sim.camp.pile}.` : `No camp. The team has ${sim.camp.pile + sim.player.wood} wood of the ${CAMP_WOOD} a camp takes${sim.player.carryingKit ? "; you carry the kit" : ""}.`),
       h("div", { class: "stack" }, items), h("div", { class: "row" }, btn("Close", close)));
     onCancel = close;
   }
@@ -450,6 +448,7 @@ export function createUI(api) {
     const wood = shownWood(sim);
     if (wood) bits.push(`carrying ${wood} wood`);
     if (sim.player.carryingKit) bits.push("the camp kit");
+    if (!sim.camp.up && !sim.tutorial) bits.push(`team wood ${sim.camp.pile + sim.player.wood}/${CAMP_WOOD}`);
     if (sim.player.holding) bits.push("it, in both hands");
     if (sim.player.glows?.length) bits.push(`${sim.player.glows.length} glowing branch${sim.player.glows.length > 1 ? "es" : ""}`);
     if (sim.player.glowUntil != null && sim.time < sim.player.glowUntil) bits.push("a lit branch");

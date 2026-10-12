@@ -41,12 +41,14 @@ export const CAMP_R = 12;            // metres: the campsite, and the fire's shi
 export const REACH = 3;              // metres: hands' reach
 export const HEAR = 25;              // metres: how far a whistle carries
 export const MAX_SLOTS = 8;          // fixed for constant roll counts
-export const TASKS = ["auto", "follow", "chop", "gather", "camp", "pitch"];
+export const TASKS = ["auto", "follow", "chop", "gather", "camp"];
+export const CARRY_MAX = 5;           // wood anyone can carry, you included
+export const CAMP_WOOD = 10;          // a camp is made from the team's wood
 export const TASK_LABEL = { follow: "with you", chop: "on the deadfall", gather: "gathering wood", camp: "keeping camp", pitch: "making camp", auto: "using their judgement" };
 // What can be set this morning: no camp, nobody can stay at it; a camp up,
 // nobody needs to make one.
 // A camp you have taken down is yours to put up again: the team only ever makes the first.
-export const tasksNow = (sim) => TASKS.filter((t) => (sim.camp.up ? t !== "pitch" : t !== "camp" && !(t === "pitch" && sim.campStruck)));
+export const tasksNow = (sim) => TASKS.filter((t) => sim.camp.up || t !== "camp");
 // person-hours: alone it is most of a morning; the whole team, about an hour
 export const PITCH_HOURS = 5;
 // Gathering is chopping deadwood: an hour of daylight a chop, and 1 to 3
@@ -115,11 +117,8 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
   party.forEach((p, i) => {
     sim.members.push(newMember(sim, p.name, i, fillSkills(p.skills), false, camp.x + Math.cos(i * 1.25) * 4, camp.y + Math.sin(i * 1.25) * 4));
   });
-  for (const m of sim.members) m.task = "follow";
-  if (!campUp) {
-    sim.player.carryingKit = true;
-    sim.plan.pending = "dawn";              // you set the first day's work as you arrive
-  }
+  for (const m of sim.members) m.task = tutorial ? "follow" : "auto";   // using their judgement from the start
+  if (!campUp) sim.player.carryingKit = true;
   attach(sim, world);
   return sim;
 }
@@ -142,6 +141,7 @@ export function attach(sim, world) {
   sim.mirage ||= {};
   Grove.ensure(sim);
   sim.lifelines ||= { team: true, one: true, both: true };
+  for (const m of sim.members) if (m.task === "pitch") m.task = "auto";       // only you make camp now
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
   return sim;
 }
@@ -460,11 +460,10 @@ function tickMember(sim, m, dt, hours) {
       } else {
         // Wood goes to the pile. No camp yet: to where it is being made, or
         // to you, and it waits in their arms until there is a pile.
+        // The team's wood is one store: at the camp, or with you (and the kit) when there is none.
         const to = sim.camp.up ? sim.camp : sim.pitch || sim.player;
         if (steer(sim, m, to.x, to.y, speedOf(m), dt, 3)) {
-          if (sim.camp.up) sim.camp.pile += m.load;
-          else if (to === sim.player) sim.player.wood += m.load;
-          else break;                              // holding it at the site
+          sim.camp.pile += m.load;
           note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from.x, y: m.from.y });
           m.load = 0;
           m.state = "gather";
@@ -593,12 +592,9 @@ function finishCampWork(sim, w) {
   sim.work = null;
   const helpers = (w.helpers || []).slice();
   {
-    const carried = sim.camp.pile;
-    const cap = 6 + party(sim).filter((m) => dist(m, sim.player) < 10).reduce((s, m) => s + 2 + m.skills.carry, 0);
-    sim.player.wood = Math.min(cap, sim.player.wood + carried);
-    const left = carried - (sim.player.wood - 0);
+    const left = 0;                                    // the team's wood goes with the team
     note(sim, { verb: "struck", actor: "you", object: "camp", cls: "camp", x: sim.camp.x, y: sim.camp.y, withWhom: helpers });
-    sim.camp = { up: false, x: sim.camp.x, y: sim.camp.y, pile: 0, fire: 0, lit: false };
+    sim.camp = { up: false, x: sim.camp.x, y: sim.camp.y, pile: sim.camp.pile, fire: 0, lit: false };
     sim.player.carryingKit = true;
     sim.campStruck = true;                              // from here only you can make camp
     sim.pitch = null;
@@ -704,6 +700,7 @@ export function act(sim, target = null, tolerance = 1) {
   const p = sim.player, W = sim.world;
   switch (a.kind) {
     case "stick":
+      if (Phantom.shownWood(sim) >= CARRY_MAX) { say(sim, "Your arms are full."); break; }
       if (a.phantom) { Phantom.pickPhantom(sim, a.id); sim.events.push({ kind: "stick" }); break; }
       sim.sticks[a.id] = true;
       p.wood += 1;
@@ -765,7 +762,7 @@ function keystoneStep(sim) {
   k.nextAt = sim.time + 0.3 + stream(hash("gap", sim.seed, k.order.length))() * 0.3;
   if (!k.order.length) {
     k.active = false; k.done = true;
-    sim.plan.pending = "dawn";                // now the day can be set, and the fire lit
+    sim.plan.pending = null;                  // now the fire can be lit
     say(sim, "That is everyone.", "info");
   }
 }
@@ -807,10 +804,12 @@ export function campSpot(sim) {
   if (roomAt(sim, ahead.x, ahead.y)) return ahead;
   return roomAt(sim, p.x, p.y) ? { x: p.x, y: p.y } : null;
 }
+/** The team's wood, as far as making camp goes: the store plus what is in your arms. */
+export const teamWood = (sim) => sim.camp.pile + sim.player.wood;
 export function canMakeCamp(sim) {
   if (sim.camp.up || sim.work) return false;
-  if (sim.pitch && dist(sim.player, sim.pitch) < 6) return true;      // carry on with this one
-  return !!campSpot(sim);
+  if (sim.pitch && dist(sim.player, sim.pitch) < 6) return true;      // carry on with this one (paid)
+  return !!campSpot(sim) && teamWood(sim) >= CAMP_WOOD;
 }
 export function makeCamp(sim) {
   if (!canMakeCamp(sim)) return false;
@@ -818,6 +817,9 @@ export function makeCamp(sim) {
     // you are making it here: whoever was making it elsewhere stops
     if (sim.pitch) for (const m of party(sim)) if (m.task === "pitch") m.task = "follow";
     const at = campSpot(sim);
+    // ten of the team's wood goes into it: the store first, then your arms
+    const fromPile = Math.min(sim.camp.pile, CAMP_WOOD);
+    sim.camp.pile -= fromPile; sim.player.wood -= CAMP_WOOD - fromPile;
     sim.pitch = { x: at.x, y: at.y, left: PITCH_HOURS, place: placeName(sim.world, at.x, at.y), hands: [] };
   }
   sim.player.carryingKit = false;
@@ -1068,8 +1070,10 @@ function taskDone(m, next) {
 export function autoScores(sim, m) {
   const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
   const s = {};
-  if (!sim.camp.up && !sim.campStruck) s.pitch = 10 + m.skills.build * 0.5 - others("pitch") * 3;
-  if (sim.camp.up || sim.pitch) s.gather = (sim.camp.up ? Math.max(0, 7 - sim.camp.pile) : 3) + m.skills.carry * 0.5 - others("gather") * 1.5;
+  // before there is a camp, its wood is the first thing anyone needs
+  s.gather = sim.camp.up
+    ? Math.max(0, 7 - sim.camp.pile) + m.skills.carry * 0.5 - others("gather") * 1.5
+    : Math.max(1, CAMP_WOOD + 2 - sim.camp.pile) * 1.5 + m.skills.carry * 0.5 - others("gather") * 0.4;
   const i = currentDeadfall(sim);
   if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
   if (sim.camp.up) s.camp = 1.5 + m.skills.fire * 0.5 + (hourOf(sim.time) >= DUSK - 3 ? 3 : 0) - others("camp") * 2;
@@ -1085,11 +1089,6 @@ function autoPick(sim, m) {
   m.autoTask = best;
   m.autoUntil = sim.time + 1;
   // nobody has the camp in hand yet: they take the kit to the nearest clearing
-  if (best === "pitch" && !sim.pitch) {
-    const c = pitchSite(sim, m) || { x: m.x, y: m.y, kind: "trail" };
-    sim.pitch = { x: c.x, y: c.y, left: PITCH_HOURS, place: c.kind, hands: [] };
-    sim.player.carryingKit = false;
-  }
 }
 
 function pitchDone(sim) {
@@ -1101,7 +1100,7 @@ function pitchDone(sim) {
   const yours = dist(sim.player, P) < 8 ? sim.player.wood : 0;
   sim.player.wood -= yours;
   if (sim.work?.kind === "make") sim.work = null;
-  sim.camp = { up: true, x: P.x, y: P.y, pile: carried + yours, fire: 0, lit: false };
+  sim.camp = { up: true, x: P.x, y: P.y, pile: sim.camp.pile + carried + yours, fire: 0, lit: false };
   sim.player.carryingKit = false;
   for (const id of P.hands) { const h = byId(sim, id); if (h) practice(sim, h, "build"); }
   const [first, ...rest] = P.hands;
@@ -1126,18 +1125,13 @@ export function chooseTwin(sim, keepId, goId) {
   note(sim, { verb: "sent", actor: "you", object: null, x: sim.player.x, y: sim.player.y, withWhom: [keepId] });
   say(sim, `${go.name} walks into the trees and does not look back. ${keep.name} stays.`, "warn");
   sim.events.push({ kind: "chosen" });
-  sim.plan.pending = twins(sim).length ? "choose" : "dawn";
+  sim.plan.pending = twins(sim).length ? "choose" : null;
 }
 
 export const roster = (sim) => sim.members.filter((m) => !m.gone && !m.home);
 
 export function setDawnPlan(sim, tasks) {
   const allowed = tasksNow(sim);
-  if (Object.values(tasks).includes("pitch") && !sim.camp.up && !sim.pitch) {
-    const c = pitchSite(sim) || { x: sim.player.x, y: sim.player.y, kind: "trail" };
-    sim.pitch = { x: c.x, y: c.y, left: PITCH_HOURS, place: c.kind, hands: [] };
-    sim.player.carryingKit = false;          // they have the kit now
-  }
   for (const m of roster(sim)) {
     const t = allowed.includes(tasks[m.id]) ? tasks[m.id] : "follow";
     m.task = t; m.state = "idle"; m.site = null; m.stateT = 0; m.chopId = null; m.called = false;
