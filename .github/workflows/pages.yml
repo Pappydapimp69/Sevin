@@ -20,7 +20,7 @@ jobs:
           V="${GITHUB_SHA::7}"
           sed -i -E "s#(from \"\.\.?/[^\"]+\.js)\"#\1?v=$V\"#g" src/*.js
           sed -i -E "s#(import\(\"\.\.?/[^\"]+\.js)\"#\1?v=$V\"#g" src/*.js
-          sed -i -E "s#src=\"src/main\.js\"#src=\"src/main.js?v=$V\"#; s#>build dev<#>build $V<#" index.html
+          sed -i -E "s#src=\"src/main\.js\"#src=\"src/main.js?v=$V\"#; s#build dev<#build $V<#" index.html
           grep -c "?v=$V" src/main.js index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
