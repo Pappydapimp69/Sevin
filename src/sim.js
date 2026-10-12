@@ -973,9 +973,21 @@ export function playCall(sim, call) {
     if ((call === own || call === worn) && !m.sleeping && dist(m, sim.player) <= HEAR * 3) hits.push(m);
   }
   for (const ms of sim.missing)
-    if (callOf(sim.seed, ms.id) === call && Grove.personOut(sim, ms) && dist(ms, sim.player) <= 70) hits.push(ms);
+    if (callOf(sim.seed, ms.id) === call && Grove.personOut(sim, ms) && dist(ms, sim.player) <= 70) { hits.push(ms); ms.heardCall = sim.time; }
+  // At the glowing tree, their call is answered: from the trunk if it is them, from
+  // beside you if they are in the pocket next to it and the tree is only a tree.
+  const ge = sim.grove?.enc;
+  if (ge && Grove.treeUp(sim) && !ge.silent) {
+    const ms = sim.missing.find((x) => x.id === ge.msId);
+    if (ms && callOf(sim.seed, ms.id) === call && dist(ge, sim.player) <= 70) {
+      const a = stream(hash("pocket", sim.seed, ms.id, Math.floor(sim.time * 60)))() * Math.PI * 2;
+      const at = ge.real ? { x: sim.player.x + Math.cos(a) * 3, y: sim.player.y + Math.sin(a) * 3 } : { x: ge.x, y: ge.y };
+      hits.push({ ...ms, x: at.x, y: at.y });
+    }
+  }
   if (!hits.length) { say(sim, "Nobody answers to that."); return null; }
   hits.forEach((m, i) => sim.events.push({ kind: "callanswer", id: m.id, name: m.name, x: m.x, y: m.y, voice: m.voice, call: m.fake ? callFor(sim, m) : callOf(sim.seed, m.id), delay: 1.2 + i * 1.6 }));
+  for (const m of hits) if (sim.missing.includes(m)) say(sim, "Something moves out there, toward your call.", "warn");
   const near = hits.filter((m) => sim.members.includes(m)).sort((a, b) => dist(a, sim.player) - dist(b, sim.player))[0];
   if (near && !isNight(sim.time)) {
     near.summonUntil = sim.time + SUMMON_HOURS; near.state = "idle"; near.site = null; near.chopId = null;
@@ -1106,6 +1118,11 @@ export function walkOut(sim) {
 // who took their slot, under the same name. One of the two is real.
 function rescue(sim, id) {
   const ms = sim.missing.find((x) => x.id === id);
+  // out in the dark they come to their own call and nothing else
+  if (ms.heardCall == null || sim.time - ms.heardCall > 0.5) {
+    say(sim, `${ms.name} does not know you. They shrink back from your hand. Whistle their call.`, "warn");
+    return { kind: "rescue", id, fail: "call" };
+  }
   ms.found = true;
   // what the tree took, they come home without: one arm, half their skill; both, none
   const k = (ms.arms ?? 2) >= 2 ? 1 : ms.arms === 1 ? 0.5 : 0;

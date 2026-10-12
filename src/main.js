@@ -31,6 +31,8 @@ const prefs = Save.settings();
 const ui = createUI({
   paused: (on) => { paused = on; input.setEnabled(!on); },
   setMenu: (m) => input.setMenu(m),
+  callFor: (m) => S.callFor(sim, m),
+  playCall: (call, ms) => { audio.event({ kind: "call", call }, sim); ms.forEach((m, i) => setTimeout(() => audio.event({ kind: "call", voice: m.voice, call: S.callFor(sim, m) }, sim), 1400 + i * 1500)); },
   scheme: () => input.state.scheme,
   settings: () => prefs,
   applySettings: (st) => { applySettings(st); Save.saveSettings(st); },

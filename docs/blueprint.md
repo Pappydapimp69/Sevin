@@ -215,7 +215,11 @@ it. Hold the whistle button for the pad (a tap is still a plain whistle):
 play four notes and whistle it. Whoever's call it is answers with their own
 call, shown as notes and heard from where they are; by day the nearest of them
 comes. A fake answers to the call it wears, but in its own, one note off. The
-missing answer from the dark in the small hours. Once everyone at camp has
+missing answer from the dark in the small hours, and come out to you ONLY after
+hearing their own call (no call, no rescue). At the glowing tree their call is
+answered from the trunk if it is them, from beside you if the tree is only a
+tree. At the morning choice, a call you know can be whistled for free: A and B
+each answer in their own. Once everyone at camp has
 turned in there is nobody to learn from and nobody to set the watch with; still
 up at one, you drop where you stand.
 

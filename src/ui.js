@@ -323,12 +323,20 @@ export function createUI(api) {
           life("Ask the team", ll.team && others.length, () => { ll.team = false; poll(); paint(); }),
           life("Ask one of them", ll.one && others.length, () => { ll.one = false; pickOne(); }),
           life("Ask both about a day", ll.both, () => { ll.both = false; pickDay(); })),
+        // not a lifeline: if you know their call, whistle it and hear how each answers
+        sim.learned?.[name] ? h("div", { class: "row wrap" }, btn(`Whistle ${name}'s call  ${glyphs(sim.learned[name])}`, () => { whistleBoth(); paint(); })) : null,
         out,
       );
     }
     // a spent lifeline stays in the row and keeps focus (greyed, does nothing), so
     // the pad stays where it was instead of jumping to an answer
     const life = (label, ok, fn) => { const b = btn(label, () => { if (ok) fn(); }, ok ? "" : "spent"); if (!ok) b.setAttribute("aria-disabled", "true"); return b; };
+    function whistleBoth() {
+      const a = api.callFor(A), b = api.callFor(B);
+      api.playCall?.(sim.learned[name], [A, B]);
+      out.replaceChildren(h("p", { class: "who" }, `You whistle ${name}'s call, as you learned it:  ${glyphs(sim.learned[name])}`),
+        h("p", {}, `A answers:  ${glyphs(a)}`), h("p", {}, `B answers:  ${glyphs(b)}`));
+    }
     function poll() {
       const votes = others.map((m) => voteOf(sim, m, A, B));
       const a = votes.filter((v) => v.pick === A.id).length, n = votes.length;
