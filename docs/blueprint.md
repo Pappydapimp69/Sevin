@@ -164,8 +164,8 @@ whistle back from the dark (heard to 70 m). Sleep again any time; awake at
 **Refusal zone.** 12 m round every active rescue spot. Nobody but you goes in.
 They stop at the edge: the real ones turn their backs; a fake faces in.
 
-**Golden tree** (`grove.js`). Some nights a missing person's spot holds a glowing
-tree instead of them. It is outside the hidden meter (the woods made it). It
+**Golden tree** (`grove.js`). On the night someone is taken, their spot sometimes
+holds a glowing tree instead of them (never on a later night). It is outside the hidden meter (the woods made it). It
 whistles in their voice like they would. Chop it: something drops every 2-3
 chops; the tree never falls. The chop follows the body inside it:
 - a real tree (the person is in a pocket beside it, unseen): glow sticks and one

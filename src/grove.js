@@ -65,13 +65,14 @@ export function spots(sim) {
   return out;
 }
 
-/** The night falls: does a golden tree stand where someone is? One tree, one night. */
+/** The night someone is taken: does a golden tree stand where they are? */
 export function nightFalls(sim, d) {
   ensure(sim);
   const g = sim.grove;
   g.enc = null;
+  // only on the night someone is taken, and only for them
   for (const ms of sim.missing) {
-    if (!active(ms)) continue;
+    if (!active(ms) || ms.takenDay !== d) continue;
     const r = stream(hash("gtree", sim.seed, ms.id, d));
     if (r() >= 0.4) continue;
     const real = r() < 0.5;
