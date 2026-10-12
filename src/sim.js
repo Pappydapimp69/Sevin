@@ -1026,6 +1026,7 @@ export function callFor(sim, m) {
  * Anything else: an ordinary whistle.
  */
 export function playCall(sim, call) {
+  sim.lastWhistleAt = sim.time;
   sim.events.push({ kind: "callplayed", call, ctx: whistleCtx(sim, null) });
   sim.stats.whistles = (sim.stats.whistles || 0) + 1;
   const hits = [];
@@ -1098,6 +1099,7 @@ export function whistle(sim, power = 1) {
     say(sim, `${m.name} stops what they are doing and comes.`, "talk");
     sim.events.push({ kind: "summoned", id: m.id });
   }
+  sim.lastWhistleAt = sim.time;
   sim.whistleWindow = second ? 0 : WHISTLE_WINDOW;
   sim.stats.whistles = (sim.stats.whistles || 0) + 1;
   sim.events.push({ kind: "whistle", power, ctx: whistleCtx(sim, null) });
@@ -1183,8 +1185,11 @@ export function walkOut(sim) {
 function rescue(sim, id) {
   const ms = sim.missing.find((x) => x.id === id);
   // out in the dark they come to their own call and nothing else
-  if (ms.heardCall == null || sim.time - ms.heardCall > 0.5) {
-    say(sim, `${ms.name} does not know you. They shrink back from your hand. Whistle their call.`, "warn");
+  // Close enough to see you, any whistle will do: a call you never learned must not
+  // lock a rescue (Brain seven#E24). Their call is what finds them from far off.
+  const nearWhistle = sim.lastWhistleAt != null && sim.time - sim.lastWhistleAt < 0.5 && dist(ms, sim.player) < 5;
+  if (!nearWhistle && (ms.heardCall == null || sim.time - ms.heardCall > 0.5)) {
+    say(sim, `${ms.name} does not know you. They shrink back from your hand. Whistle, so they know it is you.`, "warn");
     return { kind: "rescue", id, fail: "call" };
   }
   ms.found = true;
