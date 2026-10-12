@@ -472,7 +472,7 @@ function tickMember(sim, m, dt, hours) {
       const dest = woodDest(sim);
       if (m.state !== "gather" && m.state !== "carry" && m.state !== "haul") {
         // a new trip: most of the time, the old pile comes to the new camp first
-        const old = dest && (m.load || 0) === 0 ? sim.piles.find((pl) => pl !== dest && pl.n > 0 && reachable(sim, m, pl)) : null;
+        const old = dest && !sim.pitch && (m.load || 0) === 0 ? sim.piles.find((pl) => pl !== dest && pl.n > 0 && reachable(sim, m, pl)) : null;
         m.trips = (m.trips || 0) + 1;
         if (old && stream(hash("haul", sim.seed, m.id, m.trips))() < HAUL_CHANCE) { m.state = "haul"; m.haul = old; }
         else { m.state = "gather"; m.site = woodSite(sim, m); }
@@ -867,8 +867,10 @@ export function campSpot(sim) {
 export const woodDest = (sim) => (sim.camp.up ? sim.camp : sim.site || sim.piles[sim.piles.length - 1] || null);
 function addWood(sim, dest, n) {
   if (dest === sim.camp || dest === sim.site) return toPile(sim, n);
-  else dest.n += n;
-  return 0;
+  // an old pile holds what a camp's does
+  const put = Math.min(n, Math.max(0, WOODPILE_MAX - dest.n));
+  dest.n += put;
+  return n - put;
 }
 /** Mark where the camp goes. Wood brought here waits for it. A site moved leaves its wood behind. */
 export function canMarkSite(sim) { return !sim.camp.up && !sim.pitch && !sim.work && !!campSpot(sim); }
@@ -1199,7 +1201,8 @@ export function autoScores(sim, m) {
   const s = {};
   // before there is a camp, its wood is the first thing anyone needs
   // a camp you started and left half made: the good builders carry on with it
-  if (sim.pitch && !sim.camp.up && m.skills.build >= 2) s.pitch = 9 + m.skills.build - others("pitch") * 2;
+  // ...and that comes before any wood, hauled or gathered
+  if (sim.pitch && !sim.camp.up && m.skills.build >= 2) s.pitch = 40 + m.skills.build - others("pitch") * 2;
   s.gather = (sim.camp.up
     ? Math.max(0, 7 - sim.camp.pile) + m.skills.carry * 0.5 - others("gather") * 1.5
     : Math.max(1, CAMP_WOOD + 2 - sim.camp.pile) * 1.5 + m.skills.carry * 0.5 - others("gather") * 0.4)

@@ -147,3 +147,4 @@ button[aria-disabled="true"] { opacity: .4; cursor: default; }
 .padkeys .kR { grid-column: 3; grid-row: 2; } .padkeys .kD { grid-column: 2; grid-row: 3; }
 .padkeys button { font-size: 1.3em; padding: 0; }
 #build { position: fixed; right: 6px; bottom: 4px; font-size: 10px; opacity: .35; pointer-events: none; z-index: 1; }
+#touchbar, #touchbar button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }

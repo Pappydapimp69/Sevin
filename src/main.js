@@ -420,6 +420,8 @@ document.addEventListener("visibilitychange", () => { if (document.hidden && sim
 
 // touch buttons
 for (const b of document.querySelectorAll("#touchbar button")) {
+  // a long press is ours (the whistle pad), not the browser's menu or text selection
+  b.addEventListener("contextmenu", (e) => e.preventDefault());
   if (b.dataset.verb === "call") {
     let t0 = null;
     b.addEventListener("pointerdown", () => { t0 = performance.now(); });
