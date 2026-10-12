@@ -103,7 +103,12 @@ select { font: inherit; background: #1d241c; color: var(--ink); border: 1px soli
   .recruit button.tiny { padding: 4px 8px; }
   .recruit .grid .val { width: 1.3em; }
   .skillkey { grid-template-columns: 1fr; gap: 0; } .skillkey dd { margin-bottom: 6px; }
-  .grid .skills { display: none; }
+  /* the plan: name and task on one line, their skills under it */
+  .panel.plan .grid, .panel.plan .grid tbody { display: block; }
+  .panel.plan .grid tr { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 2px 10px; padding: 6px 0; border-bottom: 1px solid #263026; }
+  .panel.plan .grid td { display: block; border: 0; padding: 0; }
+  .panel.plan .grid td.skills { grid-column: 1 / -1; display: block; font-size: .78em; }
+  .panel.plan .grid select { width: 100%; }
   #compass { top: 36px; font-size: .85em; }
   #tut { top: 64px; }
   #carry { max-width: 45vw; font-size: .85em; }
