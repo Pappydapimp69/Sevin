@@ -44,7 +44,8 @@ export const MAX_SLOTS = 8;          // fixed for constant roll counts
 export const TASKS = ["auto", "follow", "chop", "gather", "camp"];
 export const CARRY_MAX = 5;           // wood you can carry with a camp up
 export const CARRY_NO_CAMP = 10;      // with no camp, you carry the build wood
-export const MEMBER_CARRY = 4;        // what a teammate can carry
+// what a teammate can carry: one piece for every two points of Carrying, at least one
+export const memberCarry = (m) => Math.max(1, Math.floor((m.skills?.carry || 0) / 2));
 export const carryMax = (sim) => (sim.camp.up ? CARRY_MAX : CARRY_NO_CAMP);
 export const HAUL_CHANCE = 0.8;       // a gatherer hauls an old pile to the new camp this often
 export const CAMP_WOOD = 10;          // a camp is made from the team's wood
@@ -463,7 +464,7 @@ function tickMember(sim, m, dt, hours) {
         const pl = sim.piles.find((x) => x.x === m.haul?.x && x.y === m.haul?.y);
         if (!pl || pl.n <= 0) { m.state = "next"; break; }
         if (steer(sim, m, pl.x, pl.y, speedOf(m), dt, 1.5)) {
-          const take = Math.min(MEMBER_CARRY - (m.load || 0), pl.n);
+          const take = Math.min(memberCarry(m) - (m.load || 0), pl.n);
           pl.n -= take; m.load = (m.load || 0) + take; m.from = { x: pl.x, y: pl.y };
           sim.piles = sim.piles.filter((x) => x.n > 0 || x === woodDest(sim));
           m.state = "carry";
@@ -480,11 +481,11 @@ function tickMember(sim, m, dt, hours) {
           if (m.gathering >= WOOD_CHOP_HOURS) {
             m.gathering = 0;
             m.chops = (m.chops || 0) + 1;
-            m.load = Math.min(MEMBER_CARRY, (m.load || 0) + woodPerChop(m, sim.seed, m.chops));
+            m.load = Math.min(memberCarry(m), (m.load || 0) + woodPerChop(m, sim.seed, m.chops));
             m.from = { x: site.x, y: site.y };
             practice(sim, m, "carry");
             // nowhere to take it yet: keep cutting until their arms are full
-            if (dest || m.load >= MEMBER_CARRY) m.state = "carry";
+            if (dest || m.load >= memberCarry(m)) m.state = "carry";
           }
         }
       } else {
