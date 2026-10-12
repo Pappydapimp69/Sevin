@@ -1222,7 +1222,9 @@ export function tick(sim, dt, input = {}) {
   if (input.pitch != null) p.pitch = input.pitch;
 
   // movement
-  const fwd = input.fwd || 0, side = input.side || 0;
+  // picking up wood holds you still until it is in your hands
+  const pickingUp = sim.work?.kind === "act" && (sim.work.target?.kind === "stick" || sim.work.target?.kind === "gpick");
+  const fwd = pickingUp ? 0 : input.fwd || 0, side = pickingUp ? 0 : input.side || 0;
   const moving = Math.abs(fwd) + Math.abs(side) > 0.05;
   if (moving) {
     if (sim.work && sim.work.kind !== "ask") {
