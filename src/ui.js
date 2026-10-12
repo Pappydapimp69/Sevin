@@ -245,7 +245,7 @@ export function createUI(api) {
   // arrow keys or the stick play notes; the on-screen arrows for a finger.
   const DIRS = { "0,-1": "U", "1,0": "R", "0,1": "D", "-1,0": "L" };
   // five notes to play a four-note call in (one to spare); "Back 2" takes the last two away
-  function padInput(onNote, onSend, onCancel, max = 5) {
+  function padInput(onNote, onSend, onCancel, max = 5, learning = false) {
     let seq = "";
     const empty = "· ".repeat(max).trim();
     const shown = h("div", { class: "padseq" }, empty);
@@ -261,6 +261,7 @@ export function createUI(api) {
       confirm() { send.click(); },
       cancel() { onCancel(); },
     };
+    if (learning) { padMenu.confirm = () => {}; return { el: h("div", { class: "pad" }, keys), menu: padMenu, focus: () => keys.firstChild?.focus({ preventScroll: true }), reset: () => { seq = ""; } }; }
     return { el: h("div", { class: "pad" }, shown, keys, h("div", { class: "row" }, clear, send)), menu: padMenu, focus: () => send.focus({ preventScroll: true }), reset: () => { seq = ""; paintSeq(); } };
   }
 
@@ -278,30 +279,63 @@ export function createUI(api) {
   }
 
   // Learning calls at the fire: each one whistles theirs; you play it back.
+  // Learning calls at the fire: a game of listen-and-play-back.
+  // A four-lane staff (high to low: up, right, left, down). Their notes light up as
+  // they whistle, then go dark: you play it from memory. Every note you play sounds
+  // in THEIR voice if it is right and glows; a wrong one flashes, and they whistle
+  // it again. Got it: they answer with a flourish. Five goes each.
+  const LANES = ["U", "R", "L", "D"];
   function learn(sim, people, v) {
-    let i = 0, tries = 0;
+    let i = 0, tries = 0, idx = 0, streak = 0, busy = false, timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
     const msg = h("p", { class: "who" });
-    const heard = h("div", { class: "padseq heard" });
-    const pad = padInput(v.note, (seq) => check(seq), () => { close(); v.done(); });
-    function next() {
-      if (i >= people.length) { close(); v.done(); return; }
-      const m = people[i];
-      msg.textContent = `${m.name} whistles their call.`;
-      heard.textContent = glyphs(v.callOf(m));
+    const tally = h("p", { class: "small streak" });
+    const cells = LANES.map(() => Array.from({ length: 4 }, () => h("span", { class: "cell" })));
+    const staff = h("div", { class: "staff" }, LANES.map((k, r) => h("div", { class: "lane" }, h("span", { class: "lanekey" }, CALL_GLYPH[k]), ...cells[r])));
+    const setCell = (k, col, cls) => { const c = cells[LANES.indexOf(k)]?.[col]; if (c) c.className = "cell " + cls; };
+    const clearStaff = (mark = "") => { cells.forEach((row) => row.forEach((c) => (c.className = "cell " + mark))); };
+    const pad = padInput((k) => play(k), () => {}, () => end(), 4, true);
+    const again = btn("Hear it again", () => { if (!busy) whistle(people[i]); });
+    function whistle(m) {
+      busy = true; idx = 0; pad.reset(); clearStaff();
+      const call = v.callOf(m), pace = Math.max(0.2, m.voice?.pace || 0.26) * 1.15 * 1000;
       v.play(m);
-      tries = 0; pad.reset();
+      [...call].forEach((k, col) => later(() => setCell(k, col, "lit"), col * pace));
+      // then the notes go dark: from memory now
+      later(() => { clearStaff("dark"); busy = false; msg.textContent = `Your turn. Play ${m.name}'s call.`; }, call.length * pace + 900);
     }
-    function check(seq) {
+    function next() {
+      if (i >= people.length) { end(); return; }
       const m = people[i];
-      if (seq.includes(v.callOf(m))) { v.learned(m); msg.textContent = `You have ${m.name}'s call.`; i++; setTimeout(next, 1400); }
-      else if (++tries < 5) { msg.textContent = `Not quite. ${m.name} whistles it again.`; v.play(m); pad.reset(); }
-      else { msg.textContent = `It slips away. Maybe tomorrow night.`; i++; setTimeout(next, 1400); }
+      tries = 0;
+      msg.textContent = `${m.name} whistles their call. Listen.`;
+      tally.textContent = streak ? `Calls learned tonight: ${streak}` : "";
+      later(() => whistle(m), 500);
     }
+    function play(k) {
+      if (busy) return;
+      const m = people[i], call = v.callOf(m);
+      if (k === call[idx]) {
+        v.noteAs(m, k); setCell(k, idx, "good"); idx++;
+        if (idx === call.length) {
+          busy = true; streak++; v.learned(m); v.flourish(m);
+          msg.textContent = `You have ${m.name}'s call. They whistle it back, pleased.`;
+          tally.textContent = `Calls learned tonight: ${streak}`;
+          cells.forEach((row) => row.forEach((c) => c.classList.contains("good") && c.classList.add("won")));
+          i++; later(next, 1800);
+        }
+      } else {
+        busy = true; v.wrong(); setCell(k, idx, "bad");
+        if (++tries < 5) { msg.textContent = `Not quite. ${m.name} whistles it again.`; later(() => whistle(m), 900); }
+        else { msg.textContent = "It slips away. Maybe tomorrow night."; i++; later(next, 1600); }
+      }
+    }
+    function end() { timers.forEach(clearTimeout); close(); v.done(); }
     show("learn", h("h2", {}, "Learning their calls"),
-      h("p", { class: "small" }, "Each one whistles their call. Play it back on the pad. Learned, it calls them by name, anywhere they can hear."),
-      msg, heard, pad.el);
+      h("p", { class: "small" }, `Listen, then play it back from memory (${K("{movepad}")}). Learned, a call brings that one to you by name.`),
+      msg, staff, pad.el, h("div", { class: "row" }, again), tally);
     api.setMenu(pad.menu); pad.focus();
-    onCancel = () => { close(); v.done(); };
+    onCancel = () => end();
     next();
   }
 

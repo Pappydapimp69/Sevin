@@ -148,3 +148,17 @@ button[aria-disabled="true"] { opacity: .4; cursor: default; }
 .padkeys button { font-size: 1.3em; padding: 0; }
 #build { position: fixed; right: 6px; bottom: 4px; font-size: 10px; opacity: .35; pointer-events: none; z-index: 1; }
 #touchbar, #touchbar button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
+
+/* the call game: a four-lane staff */
+.staff { margin: 10px auto; display: grid; gap: 4px; max-width: 320px; }
+.lane { display: grid; grid-template-columns: 28px repeat(4, 1fr); gap: 6px; align-items: center; }
+.lanekey { color: var(--dim); text-align: center; }
+.staff .cell { height: 22px; border-radius: 11px; background: rgba(255,255,255,.05); transition: background .15s, box-shadow .2s, transform .15s; }
+.staff .cell.lit { background: #8fd0ff; box-shadow: 0 0 12px #8fd0ff; }
+.staff .cell.dark { background: rgba(255,255,255,.03); }
+.staff .cell.good { background: #e8c25a; box-shadow: 0 0 10px #e8c25a; }
+.staff .cell.won { animation: won .5s ease 2; }
+.staff .cell.bad { background: #c0392b; box-shadow: 0 0 12px #c0392b; animation: shake .3s; }
+@keyframes won { 50% { transform: scale(1.25); } }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.streak { text-align: center; color: var(--accent, #c9a45a); }

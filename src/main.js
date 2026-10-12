@@ -138,6 +138,9 @@ const campVerbs = {
       callOf: (m) => S.callFor(sim, m),
       play: (m) => audio.event({ kind: "call", voice: m.voice, call: S.callFor(sim, m) }, sim),
       note: (k) => audio.event({ kind: "padnote", key: k }, sim),
+      noteAs: (m, k) => audio.event({ kind: "call", voice: m.voice, call: k }, sim),
+      wrong: () => audio.event({ kind: "padwrong" }, sim),
+      flourish: (m) => audio.event({ kind: "flourish", voice: m.voice, call: S.callFor(sim, m) }, sim),
       // remembered under the name, as heard from whoever whistled it
       learned: (m) => { (sim.learned ||= {})[m.name] = S.callFor(sim, m); },
       done: () => { S.pass(sim, 0.25); after?.(); },

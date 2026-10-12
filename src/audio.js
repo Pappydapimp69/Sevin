@@ -139,6 +139,14 @@ export function createAudio() {
       case "reveal": tone(98, 2.8, 0.25, 0, -20, "sawtooth"); tone(104, 2.8, 0.2, 0, -20, "sawtooth"); break;
       case "glowOn": tone(880, 1.5, 0.08); tone(1320, 1.8, 0.05, 0, 0, "sine", 0.1); break;
       case "ate": tone(220, 3, 0.1, 0, -110, "triangle"); break;
+      case "padwrong": tone(150, 0.35, 0.12, 0, -40, "triangle"); break;
+      case "flourish": {
+        // their call back, quicker, then once more a fifth up, with a trill on the end
+        const v = e.voice, q = (v?.pace || 0.26) * 0.7, fast = { ...v, pace: q };
+        whistleTone(0, 0.15, callNotes(fast, e.call));
+        whistleTone(0, 0.13, callNotes({ ...fast, pitch: (v?.pitch || 1600) * 1.5 }, e.call).map((n) => ({ ...n, at: n.at + q * 5 })));
+        break;
+      }
       case "padnote": whistleTone(0, 0.12, callNotes(PLAYER_VOICE, e.key)); break;
       case "call": whistleTone(0, e.voice ? 0.14 : 0.2, callNotes(e.voice || PLAYER_VOICE, e.call)); break;
       case "callanswer": {
