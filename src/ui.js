@@ -244,14 +244,16 @@ export function createUI(api) {
   // Like an ocarina: up, right, down, left, then whistle it. The D-pad, the
   // arrow keys or the stick play notes; the on-screen arrows for a finger.
   const DIRS = { "0,-1": "U", "1,0": "R", "0,1": "D", "-1,0": "L" };
-  function padInput(onNote, onSend, onCancel, max = 4) {
+  // five notes to play a four-note call in (one to spare); "Back 2" takes the last two away
+  function padInput(onNote, onSend, onCancel, max = 5) {
     let seq = "";
-    const shown = h("div", { class: "padseq" }, "· · · ·");
-    const paintSeq = () => (shown.textContent = seq ? glyphs(seq) + " " + "· ".repeat(max - seq.length).trim() : "· · · ·");
+    const empty = "· ".repeat(max).trim();
+    const shown = h("div", { class: "padseq" }, empty);
+    const paintSeq = () => (shown.textContent = seq ? glyphs(seq) + " " + "· ".repeat(max - seq.length).trim() : empty);
     const add = (k) => { if (seq.length >= max) return; seq += k; onNote?.(k); paintSeq(); if (seq.length === max && api.scheme() === "touch") { /* a finger taps Whistle */ } };
     const send = btn("Whistle it", () => { const s = seq; seq = ""; paintSeq(); onSend(s); }, "primary padsend");
     const keys = h("div", { class: "padkeys" }, ["U", "L", "R", "D"].map((k) => btn(CALL_GLYPH[k], () => add(k), "padkey k" + k)));
-    const clear = btn("Clear", () => { seq = ""; paintSeq(); });
+    const clear = btn("Back 2", () => { seq = seq.slice(0, -2); paintSeq(); });
     const padMenu = {
       // notes from the D-pad, arrows or buttons only: a stick springing back through centre
       // would play a second, opposite note nobody meant
@@ -291,7 +293,7 @@ export function createUI(api) {
     }
     function check(seq) {
       const m = people[i];
-      if (seq === v.callOf(m)) { v.learned(m); msg.textContent = `You have ${m.name}'s call.`; i++; setTimeout(next, 1400); }
+      if (seq.includes(v.callOf(m))) { v.learned(m); msg.textContent = `You have ${m.name}'s call.`; i++; setTimeout(next, 1400); }
       else if (++tries < 5) { msg.textContent = `Not quite. ${m.name} whistles it again.`; v.play(m); pad.reset(); }
       else { msg.textContent = `It slips away. Maybe tomorrow night.`; i++; setTimeout(next, 1400); }
     }

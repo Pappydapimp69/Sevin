@@ -1029,16 +1029,16 @@ export function playCall(sim, call) {
   const hits = [];
   for (const m of party(sim)) {
     const own = callFor(sim, m), worn = m.fake ? callOf(sim.seed, m.of ?? m.id) : own;
-    if ((call === own || call === worn) && !m.sleeping && dist(m, sim.player) <= HEAR * 3) hits.push(m);
+    if ((call.includes(own) || call.includes(worn)) && !m.sleeping && dist(m, sim.player) <= HEAR * 3) hits.push(m);
   }
   for (const ms of sim.missing)
-    if (callOf(sim.seed, ms.id) === call && Grove.personOut(sim, ms) && dist(ms, sim.player) <= 70) { hits.push(ms); ms.heardCall = sim.time; }
+    if (call.includes(callOf(sim.seed, ms.id)) && Grove.personOut(sim, ms) && dist(ms, sim.player) <= 70) { hits.push(ms); ms.heardCall = sim.time; }
   // At the glowing tree, their call is answered: from the trunk if it is them, from
   // beside you if they are in the pocket next to it and the tree is only a tree.
   const ge = sim.grove?.enc;
   if (ge && Grove.treeUp(sim) && !ge.silent) {
     const ms = sim.missing.find((x) => x.id === ge.msId);
-    if (ms && callOf(sim.seed, ms.id) === call && dist(ge, sim.player) <= 70) {
+    if (ms && call.includes(callOf(sim.seed, ms.id)) && dist(ge, sim.player) <= 70) {
       const a = stream(hash("pocket", sim.seed, ms.id, Math.floor(sim.time * 60)))() * Math.PI * 2;
       const at = ge.real ? { x: sim.player.x + Math.cos(a) * 3, y: sim.player.y + Math.sin(a) * 3 } : { x: ge.x, y: ge.y };
       hits.push({ ...ms, x: at.x, y: at.y });
