@@ -129,14 +129,14 @@ export function createInput(canvas, verbs, { onScheme, onTap } = {}) {
     if (menu?.any) { if (edge.some(Boolean)) menu.any(); return; }
     if (menu) {
       const mag = Math.max(Math.abs(L.x), Math.abs(L.y));
-      let dir = null;
-      if (mag > 0.6 && !stickHeld) { stickHeld = true; dir = Math.abs(L.x) > Math.abs(L.y) ? [Math.sign(L.x), 0] : [0, Math.sign(L.y)]; }
+      let dir = null, src = "dpad";
+      if (mag > 0.6 && !stickHeld) { stickHeld = true; src = "stick"; dir = Math.abs(L.x) > Math.abs(L.y) ? [Math.sign(L.x), 0] : [0, Math.sign(L.y)]; }
       else if (mag < 0.3) stickHeld = false;
-      if (edge[12]) dir = [0, -1];
-      if (edge[13]) dir = [0, 1];
-      if (edge[14]) dir = [-1, 0];
-      if (edge[15]) dir = [1, 0];
-      if (dir) menu.nav(dir[0], dir[1]);
+      if (edge[12]) { dir = [0, -1]; src = "dpad"; }
+      if (edge[13]) { dir = [0, 1]; src = "dpad"; }
+      if (edge[14]) { dir = [-1, 0]; src = "dpad"; }
+      if (edge[15]) { dir = [1, 0]; src = "dpad"; }
+      if (dir) menu.nav(dir[0], dir[1], src);
       if (edge[0]) menu.confirm();
       if (edge[1] || edge[9]) menu.cancel();
       return;

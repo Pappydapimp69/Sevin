@@ -253,7 +253,9 @@ export function createUI(api) {
     const keys = h("div", { class: "padkeys" }, ["U", "L", "R", "D"].map((k) => btn(CALL_GLYPH[k], () => add(k), "padkey k" + k)));
     const clear = btn("Clear", () => { seq = ""; paintSeq(); });
     const padMenu = {
-      nav(dx, dy) { const k = DIRS[`${Math.sign(dx)},${Math.sign(dy)}`]; if (k) add(k); },
+      // notes from the D-pad, arrows or buttons only: a stick springing back through centre
+      // would play a second, opposite note nobody meant
+      nav(dx, dy, src) { if (src === "stick") return; const k = DIRS[`${Math.sign(dx)},${Math.sign(dy)}`]; if (k) add(k); },
       confirm() { send.click(); },
       cancel() { onCancel(); },
     };
@@ -290,7 +292,7 @@ export function createUI(api) {
     function check(seq) {
       const m = people[i];
       if (seq === v.callOf(m)) { v.learned(m); msg.textContent = `You have ${m.name}'s call.`; i++; setTimeout(next, 1400); }
-      else if (++tries < 2) { msg.textContent = `Not quite. ${m.name} whistles it again.`; v.play(m); pad.reset(); }
+      else if (++tries < 5) { msg.textContent = `Not quite. ${m.name} whistles it again.`; v.play(m); pad.reset(); }
       else { msg.textContent = `It slips away. Maybe tomorrow night.`; i++; setTimeout(next, 1400); }
     }
     show("learn", h("h2", {}, "Learning their calls"),
