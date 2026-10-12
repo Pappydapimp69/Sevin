@@ -79,6 +79,30 @@ export function verses(sim, k = 0) {
   });
 }
 
+/**
+ * The morning choice: what a teammate would say, if asked which of the two is
+ * the one they know. Derived, never rolled from the run: a real teammate is
+ * surer the longer they walked with the real one and the more of the record
+ * they share with them; a mind far gone is guessing; a fake always points at
+ * the fake, and is always sure. Same answer every time it is asked.
+ */
+export function voteOf(sim, voter, a, b) {
+  const realOne = a.fake ? b : b.fake ? a : a, fakeOne = realOne === a ? b : a;
+  if (voter.fake) return { pick: fakeOne.id, p: 0.95 };
+  let k = 0;
+  for (const ch of Object.values(sim.chron)) for (const f of ch.facts || []) {
+    const w = f.withWhom || [];
+    if ((f.actor === voter.id && w.includes(realOne.id)) || (f.actor === realOne.id && w.includes(voter.id))) k++;
+  }
+  const missing = sim.missing.find((x) => x.id === realOne.id);
+  k += Math.max(0, (missing?.takenDay ?? 1) - 1);          // days they walked together before
+  let p = Math.min(0.9, 0.55 + 0.08 * k);
+  if (voter.sanity < 0.4) p = 0.5;
+  const r = stream(hash("vote", sim.seed, voter.id, Math.min(a.id, b.id), Math.max(a.id, b.id)))();
+  return { pick: r < p ? realOne.id : fakeOne.id, p };
+}
+export const sureWord = (p) => (p >= 0.85 ? "sure" : p >= 0.7 ? "fairly sure" : p > 0.5 ? "not sure" : "guessing");
+
 export { phantomSticks, phantomWatchers, seesPylonLit, shownWood, shownFire, mindLevel } from "./phantom.js";
 
 export const visibleParty = (sim) => party(sim);

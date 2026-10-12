@@ -105,6 +105,7 @@ export function createRun({ seed, party = null, tutorial = false, camp: campUp =
     whistleWindow: 0,
     mirage: {},
     night: null,                             // the night's draws, between sleeping and dawn
+    lifelines: { team: true, one: true, both: true },   // the morning choice: each once a run
     stats: { asked: 0, tested: 0, rescued: 0, whistles: 0 },
     startTime: DAWN + (tutorial ? 2 : 1),
     over: null,
@@ -140,6 +141,7 @@ export function attach(sim, world) {
   Object.defineProperty(sim, "sealedCells", { value: new Set(), enumerable: false, writable: true, configurable: true });
   sim.mirage ||= {};
   Grove.ensure(sim);
+  sim.lifelines ||= { team: true, one: true, both: true };
   for (const d of sim.world.decoys || []) if (Mirage.blocked(sim.mirage[d.id])) for (const [x, y] of d.seal) sim.sealedCells.add(x + "," + y);
   return sim;
 }
@@ -1110,6 +1112,23 @@ function pitchDone(sim) {
 }
 
 /** Everyone on the team, including anyone still out on the keystone morning. */
+/** Two at the fire under one name: by morning only one of them can stay. */
+export function twins(sim) {
+  const by = {};
+  for (const m of party(sim)) (by[m.name] ||= []).push(m);
+  return Object.values(by).filter((g) => g.length > 1);
+}
+/** The choice. The one not kept walks into the trees and is gone. Nobody says which was which. */
+export function chooseTwin(sim, keepId, goId) {
+  const go = byId(sim, goId), keep = byId(sim, keepId);
+  if (!go || !keep) return;
+  go.gone = true; go.sentAway = true;
+  note(sim, { verb: "sent", actor: "you", object: null, x: sim.player.x, y: sim.player.y, withWhom: [keepId] });
+  say(sim, `${go.name} walks into the trees and does not look back. ${keep.name} stays.`, "warn");
+  sim.events.push({ kind: "chosen" });
+  sim.plan.pending = twins(sim).length ? "choose" : "dawn";
+}
+
 export const roster = (sim) => sim.members.filter((m) => !m.gone && !m.home);
 
 export function setDawnPlan(sim, tasks) {

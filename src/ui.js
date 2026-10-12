@@ -5,7 +5,8 @@
 // is released; closing it is always one click or Esc.
 
 import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS } from "./sim.js";
-import { accountFor, askableDays, shownWood, shownFire, mindLevel } from "./percept.js";
+import { accountFor, askableDays, shownWood, shownFire, mindLevel, voteOf, sureWord } from "./percept.js";
+import { stream as _stream, hash as _hash } from "./rng.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
 import { SKILLS, SKILL_LABEL, SKILL_WHAT, TEAMS, DEFAULT_TEAM, teamSkills, teamFocus } from "./skills.js";
@@ -236,6 +237,70 @@ export function createUI(api) {
         btn("Sleep", () => { onDone(watch, true); close(); }, "primary")));
   }
 
+  // ---------------------------------------------------------------- the morning choice
+  // Two of one person at the fire, and only one can stay. A game show: two
+  // answers, three lifelines a run (ask the team, ask one, ask both), and a
+  // final answer. Nobody tells you if you were right.
+  function choose(sim, pair, onFinal) {
+    const flip = _stream(_hash("show", sim.seed, pair[0].id, pair[1].id))() < 0.5;
+    const [A, B] = flip ? [pair[1], pair[0]] : pair;
+    const name = A.name, L = (id) => (id === A.id ? "A" : "B");
+    const others = party(sim).filter((m) => m.id !== A.id && m.id !== B.id);
+    const out = h("div", { class: "account" });
+    const ll = sim.lifelines;
+    function paint() {
+      body.replaceChildren(
+        h("p", { class: "small" }, `Morning, day ${today(sim)}. Two people sit at the fire and both of them are ${name}. Only one of them can stay.`),
+        h("div", { class: "row wrap answers" },
+          btn(`A · ${name}`, () => final(A), "answer"),
+          btn(`B · ${name}`, () => final(B), "answer")),
+        h("p", { class: "small" }, "Lifelines, once each for the whole walk:"),
+        h("div", { class: "row wrap" },
+          btn("Ask the team", () => { ll.team = false; poll(); paint(); }, ll.team && others.length ? "" : "disabled"),
+          btn("Ask one of them", () => { ll.one = false; pickOne(); }, ll.one && others.length ? "" : "disabled"),
+          btn("Ask both about a day", () => { ll.both = false; pickDay(); }, ll.both ? "" : "disabled")),
+        out,
+      );
+    }
+    function poll() {
+      const votes = others.map((m) => voteOf(sim, m, A, B));
+      const a = votes.filter((v) => v.pick === A.id).length, n = votes.length;
+      const pa = Math.round((a / n) * 100);
+      out.replaceChildren(h("p", { class: "who" }, "The team:"),
+        h("div", { class: "poll" },
+          h("div", { class: "bar" }, h("span", { style: `width:${pa}%` }), ` A  ${pa}%`),
+          h("div", { class: "bar" }, h("span", { style: `width:${100 - pa}%` }), ` B  ${100 - pa}%`)));
+    }
+    function pickOne() {
+      out.replaceChildren(h("p", { class: "who" }, "Who do you ask?"), h("div", { class: "row wrap" }, others.map((m) => btn(m.name, () => {
+        const v = voteOf(sim, m, A, B);
+        out.replaceChildren(h("p", { class: "who" }, `${m.name}:`), h("p", {}, `“${L(v.pick)}. I'm ${sureWord(v.p)}.”`));
+        paint();
+      }))));
+      paint();
+    }
+    function pickDay() {
+      const days = askableDays(sim);
+      out.replaceChildren(h("p", { class: "who" }, "Which day?"), h("div", { class: "row wrap" }, days.map((d) => btn(`Day ${d}`, () => {
+        const acc = (m) => accountFor(sim, m.id, d);
+        const col = (lab, m) => h("div", { class: "col" }, h("p", { class: "who" }, `${lab}, about day ${d}:`), ...(acc(m).lines.length ? acc(m).lines.map((l) => h("p", {}, "“" + l + ".”")) : [h("p", {}, "“Not much to tell.”")]));
+        out.replaceChildren(h("div", { class: "row twocol" }, col("A", A), col("B", B)));
+        paint();
+      }))));
+      paint();
+    }
+    function final(m) {
+      const go = m === A ? B : A;
+      show("confirm", h("h2", {}, "Final answer?"), h("p", {}, `${L(m.id)} stays. The other walks into the trees, for good.`),
+        h("div", { class: "row" }, btn("No", () => choose(sim, pair, onFinal)), btn("Final answer", () => { close(); onFinal(m.id, go.id); }, "primary")));
+      onCancel = () => choose(sim, pair, onFinal);
+    }
+    const body = h("div");
+    paint();
+    show("choose", h("h2", {}, `Which one is ${name}?`), body);
+    onCancel = null;
+  }
+
   // ---------------------------------------------------------------- ask
   function ask(sim, m, onAsk) {
     const out = h("div", { class: "account" }, h("p", { class: "small" }, "Pick a day. Every question costs half an hour."));
@@ -436,7 +501,7 @@ export function createUI(api) {
   }
   function hideHud() { $("hud").hidden = true; }
 
-  return { title, recruit, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
+  return { title, recruit, choose, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
 }
 
 const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];

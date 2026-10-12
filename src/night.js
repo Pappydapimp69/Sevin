@@ -6,7 +6,7 @@
 
 import {
   seenBearing, burnRate, burnHours, practice, draw, party, real, atCamp, isNight, hourOf, today, dayOf, DAWN, DUSK, MAX_SLOTS, CAMP_R,
-  areaAt, shielded, canStand, reachable, note, say, DRAIN, WAKE, inSmallHours,
+  areaAt, shielded, canStand, reachable, note, say, DRAIN, WAKE, inSmallHours, twins,
 } from "./sim.js";
 import * as Grove from "./grove.js";
 import { WEATHERS } from "./chronicle.js";
@@ -258,6 +258,8 @@ export function dawn(sim) {
   sim.wantSleep = false;
   sim.wantDawn = false;
   sim.plan.pending = !camp.up || atCamp(sim, p) ? "dawn" : null;
+  // two of one person cannot both see the morning: choose
+  if (twins(sim).length) sim.plan.pending = "choose";
   sim.plan.day = nd;
   if (nd === KEYSTONE_DAY && !sim.keystone.done) startKeystone(sim, d);
   const lines = [`Day ${nd}.`];

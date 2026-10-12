@@ -194,6 +194,17 @@ a person stands one more day.
 - At 06:00 what lies on the ground turns true: glow sticks go to plain wood,
   limbs are limbs.
 
+## The morning choice (`ui.choose`, `percept.voteOf`)
+
+Two of one person cannot both see the morning. At dawn, if a rescued one sits
+beside the thing wearing their name, it is a game show: "Which one is X?", A or
+B, and three lifelines for the whole walk. Ask the team: a poll. Ask one: a pick
+and how sure. Ask both about a day: two accounts side by side, one bent. Real
+teammates are surer the longer they walked with the real one (0.55, +0.08 a
+shared day or fact, to 0.9); a far-gone mind guesses; a fake points at the fake
+and is sure. Final answer: the other walks into the trees, for good. Nobody says
+whether you were right (Brain E24: a paid 1-of-2; E40: memory decides).
+
 ## Not built in 0.1, on purpose
 
 - Further hallucinations: dead pylons seen as live, people who are not there.

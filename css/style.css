@@ -122,3 +122,11 @@ button.teamcard.sel, button.teamcard.sel:hover:not(:disabled), button.teamcard.s
 .roster .name { color: var(--accent); }
 .roster .focus { color: var(--dim); font-size: .85em; letter-spacing: .06em; text-transform: uppercase; }
 @media (max-width: 600px) { .teamcards { grid-template-columns: 1fr 1fr; } }
+
+/* the morning choice */
+.panel.choose h2 { letter-spacing: .04em; }
+.answers button.answer { flex: 1 1 40%; padding: 14px 10px; font-size: 1.1em; border: 1px solid var(--accent, #c9a45a); }
+.poll .bar { position: relative; margin: 4px 0; height: 1.6em; line-height: 1.6em; background: rgba(255,255,255,.06); }
+.poll .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(201,164,90,.45); }
+.twocol { justify-content: flex-start; align-items: flex-start; }
+.twocol .col { flex: 1 1 45%; }

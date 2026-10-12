@@ -282,7 +282,11 @@ function tickScene(dt) {
 }
 
 function openPending(sleepAfter = false) {
-  if (sim.plan.pending === "dawn") {
+  if (sim.plan.pending === "choose") {
+    const pair = S.twins(sim)[0];
+    if (!pair) { sim.plan.pending = "dawn"; return openPending(); }
+    ui.choose(sim, pair.slice(0, 2), (keep, go) => { S.chooseTwin(sim, keep, go); Save.saveRun(sim); if (sim.plan.pending) openPending(); });
+  } else if (sim.plan.pending === "dawn") {
     ui.dawnPlan(sim, (choice) => { S.setDawnPlan(sim, choice); Save.saveRun(sim); });
   } else if (sim.plan.pending === "dusk") {
     ui.duskPlan(sim, (watch, sleepNow) => {
