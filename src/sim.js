@@ -633,6 +633,9 @@ function helpWork(sim, m, hours) {
     w.left -= hours * (1 + 0.15 * m.skills.build);
     (w.helpers ||= []).includes(m.id) || w.helpers.push(m.id);
     m.workT = sim.time;
+  } else if (w.kind === "fell" && sim.fellLeft?.[w.id] != null) {
+    sim.fellLeft[w.id] -= hours * chopRate(m);
+    m.workT = sim.time;
   }
 }
 
@@ -1269,6 +1272,13 @@ export function autoScores(sim, m) {
   const others = (t) => party(sim).filter((o) => o !== m && !o.called && effTask(o) === t).length;
   const s = {};
   // before there is a camp, its wood is the first thing anyone needs
+  // You are working (a deadfall, a tree, a camp going up or down): those on auto come and lend
+  // a hand, the ones best at it first, a couple at most.
+  const job = sim.work && { chop: "cut", fell: "cut", make: "build", strike: "build" }[sim.work.kind];
+  if (job && !isNight(sim.time)) {
+    const helpers = party(sim).filter((o) => o !== m && o.task === "auto" && o.autoTask === "follow").length;
+    s.follow = 30 + (m.skills[job] || 0) * 2 - helpers * 12;
+  }
   // a camp you started and left half made: the good builders carry on with it
   // ...and that comes before any wood, hauled or gathered
   if (sim.pitch && !sim.camp.up && m.skills.build >= 2) s.pitch = 40 + m.skills.build - others("pitch") * 2;
@@ -1290,6 +1300,10 @@ export function autoScores(sim, m) {
   return s;
 }
 function autoPick(sim, m) {
+  // a job of yours just started: think again now rather than at the hour
+  if (sim.work && sim.work !== m.sawWork && ["chop", "fell", "make", "strike"].includes(sim.work.kind)) { m.sawWork = sim.work; m.autoUntil = 0; }
+  // ...and once it is done, back to their own judgement
+  if (m.autoTask === "follow" && !(sim.work && ["chop", "fell", "make", "strike"].includes(sim.work.kind))) m.autoUntil = 0;
   if (m.autoTask && sim.time < (m.autoUntil || 0)) return;
   if (m.load > 0 || m.state === "carry" || m.state === "home") return;     // finish the load first
   const s = autoScores(sim, m);
