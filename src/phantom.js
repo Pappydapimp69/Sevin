@@ -114,8 +114,8 @@ export function tickPhantom(sim, hours) {
   for (const s of phantomSticks(sim)) {
     if (s.slither || s.kind !== "snake" || Math.hypot(s.x - sim.player.x, s.y - sim.player.y) > SNAKE_M) continue;
     const away = Math.atan2(s.y - sim.player.y, s.x - sim.player.x) + (stream(hash("wind", sim.seed, s.id))() - 0.5) * 0.9;
-    // 70% to 130% of the usual pace, its own every time (side hash on the stick)
-    ph.slither[s.id] = { x: s.x, y: s.y, ang: away, t0: sim.time, k: 0.7 + 0.6 * stream(hash("pace", sim.seed, s.id))() };
+    // 100% to 320% of the usual pace, its own every time (side hash on the stick)
+    ph.slither[s.id] = { x: s.x, y: s.y, ang: away, t0: sim.time, k: 1 + 2.2 * stream(hash("pace", sim.seed, s.id))() };
     sim.events.push({ kind: "hiss" });
   }
   for (const [id, v] of Object.entries(ph.slither)) {
