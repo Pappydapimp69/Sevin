@@ -7,6 +7,7 @@
 import { clock, today, party, roster, compassOffset, seenBearing, TASKS, TASK_LABEL, TASK_SKILL, tasksNow, pitchSite, PITCH_HOURS, STRIKE_HOURS, atCamp, dayOf, isNight, hourOf, DUSK, CAMP_R, ASK_HOURS, CAMP_WOOD } from "./sim.js";
 import { accountFor, askableDays, shownWood, shownFire, mindLevel, voteOf, sureWord } from "./percept.js";
 import { stream as _stream, hash as _hash } from "./rng.js";
+import { CALL_GLYPH, glyphs } from "./voice.js";
 import { BEARINGS } from "./night.js";
 import { KEYS, keyed, glyph } from "./keys.js";
 import { SKILLS, SKILL_LABEL, SKILL_WHAT, TEAMS, DEFAULT_TEAM, teamSkills, teamFocus } from "./skills.js";
@@ -224,7 +225,7 @@ export function createUI(api) {
           btn(sim.camp.lit ? "Feed the fire" : "Light the fire", () => { onFeed(); paint(); }),
         ),
         h("p", {}, "Who sits up with the fire? A watch keeps it fed from the pile and is awake; the more watchful they are (" + SKILL_LABEL.watch + "), the less likely the night takes anyone."),
-        h("table", { class: "grid" }, party(sim).map((m) => h("tr", {},
+        h("table", { class: "grid" }, party(sim).filter((m) => !m.sleeping).map((m) => h("tr", {},
           h("td", { class: "name" }, m.name),
           h("td", {}, h("label", {}, h("input", { type: "checkbox", "data-id": m.id, checked: !!watch[m.id], on: { change: (e) => (watch[m.id] = e.target.checked) } }), " watch")),
           h("td", { class: "skills" }, h("div", { class: "skillrow" }, h("span", { class: "sk used", title: SKILL_LABEL.watch }, "watchful " + dots(m.skills.watch)))),
@@ -237,6 +238,67 @@ export function createUI(api) {
       h("div", { class: "row" },
         hourOf(sim.time) >= 22 ? null : btn("Stay up a while", () => { onDone(watch, false); close(); }),
         btn("Sleep", () => { onDone(watch, true); close(); }, "primary")));
+  }
+
+  // ---------------------------------------------------------------- the whistle pad
+  // Like an ocarina: up, right, down, left, then whistle it. The D-pad, the
+  // arrow keys or the stick play notes; the on-screen arrows for a finger.
+  const DIRS = { "0,-1": "U", "1,0": "R", "0,1": "D", "-1,0": "L" };
+  function padInput(onNote, onSend, onCancel, max = 4) {
+    let seq = "";
+    const shown = h("div", { class: "padseq" }, "· · · ·");
+    const paintSeq = () => (shown.textContent = seq ? glyphs(seq) + " " + "· ".repeat(max - seq.length).trim() : "· · · ·");
+    const add = (k) => { if (seq.length >= max) return; seq += k; onNote?.(k); paintSeq(); if (seq.length === max && api.scheme() === "touch") { /* a finger taps Whistle */ } };
+    const send = btn("Whistle it", () => { const s = seq; seq = ""; paintSeq(); onSend(s); }, "primary padsend");
+    const keys = h("div", { class: "padkeys" }, ["U", "L", "R", "D"].map((k) => btn(CALL_GLYPH[k], () => add(k), "padkey k" + k)));
+    const clear = btn("Clear", () => { seq = ""; paintSeq(); });
+    const padMenu = {
+      nav(dx, dy) { const k = DIRS[`${Math.sign(dx)},${Math.sign(dy)}`]; if (k) add(k); },
+      confirm() { send.click(); },
+      cancel() { onCancel(); },
+    };
+    return { el: h("div", { class: "pad" }, shown, keys, h("div", { class: "row" }, clear, send)), menu: padMenu, focus: () => send.focus({ preventScroll: true }), reset: () => { seq = ""; paintSeq(); } };
+  }
+
+  function whistlePad(sim, learned, v) {
+    const known = Object.entries(learned || {});
+    const pad = padInput(v.note, (seq) => { close(); v.send(seq); }, close);
+    show("pad", h("h2", {}, "Whistle a call"),
+      h("p", { class: "small" }, `Play four notes (${K("{movepad}")}), then whistle it. Whoever's call it is will answer.`),
+      pad.el,
+      h("p", { class: "who" }, known.length ? "Calls you know:" : "You know nobody's call yet. Learn them at the fire in the evening."),
+      ...known.map(([name, call]) => h("p", {}, `${name}  ${glyphs(call)}`)),
+    );
+    api.setMenu(pad.menu); pad.focus();
+    onCancel = close;
+  }
+
+  // Learning calls at the fire: each one whistles theirs; you play it back.
+  function learn(sim, people, v) {
+    let i = 0, tries = 0;
+    const msg = h("p", { class: "who" });
+    const heard = h("div", { class: "padseq heard" });
+    const pad = padInput(v.note, (seq) => check(seq), () => { close(); v.done(); });
+    function next() {
+      if (i >= people.length) { close(); v.done(); return; }
+      const m = people[i];
+      msg.textContent = `${m.name} whistles their call.`;
+      heard.textContent = glyphs(v.callOf(m));
+      v.play(m);
+      tries = 0; pad.reset();
+    }
+    function check(seq) {
+      const m = people[i];
+      if (seq === v.callOf(m)) { v.learned(m); msg.textContent = `You have ${m.name}'s call.`; i++; setTimeout(next, 1400); }
+      else if (++tries < 2) { msg.textContent = `Not quite. ${m.name} whistles it again.`; v.play(m); pad.reset(); }
+      else { msg.textContent = `It slips away. Maybe tomorrow night.`; i++; setTimeout(next, 1400); }
+    }
+    show("learn", h("h2", {}, "Learning their calls"),
+      h("p", { class: "small" }, "Each one whistles their call. Play it back on the pad. Learned, it calls them by name, anywhere they can hear."),
+      msg, heard, pad.el);
+    api.setMenu(pad.menu); pad.focus();
+    onCancel = () => { close(); v.done(); };
+    next();
   }
 
   // ---------------------------------------------------------------- the morning choice
@@ -351,7 +413,7 @@ export function createUI(api) {
     // the evening at the fire, until ten
     if (v.evening()) {
       items.push(btn("Sing together", () => { close(); v.sing(); }, "primary"));
-      items.push(btn("Whistle round the fire", () => { close(); v.round(); }));
+      items.push(btn("Learn their calls", () => { close(); v.learn(); }));
     }
     if (atCamp(sim, sim.player)) {
       if (sim.campFruit) items.push(btn("Eat the fruit", () => { close(); v.eat(); }));
@@ -513,7 +575,7 @@ export function createUI(api) {
   }
   function hideHud() { $("hud").hidden = true; }
 
-  return { title, recruit, choose, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
+  return { title, recruit, choose, whistlePad, learn, dawnPlan, duskPlan, ask, campMenu, pause, help, settings, end, tutorialEnd, confirm, hud, close, resetLog, rekey, hideHud, menu, get open() { return open; } };
 }
 
 const POINTS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];

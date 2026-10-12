@@ -107,3 +107,29 @@ export function phrase(voice, ctx, free = false) {
   if (orn === "hold") out[out.length - 1] = { ...last, dur: last.dur * 1.8 };
   return out.map((x) => ({ ...x, at: Math.round(x.at * 1000) / 1000, dur: Math.round(x.dur * 1000) / 1000 }));
 }
+
+// ---------------------------------------------------------------------------
+// Calls: a person's whistle as four notes you can play back on the pad
+// (up, right, down, left). Learned at the fire; played, it calls them by name.
+// A fake's call is the real one with exactly one note moved, derived like its
+// bent voice. Side hashes only.
+export const CALL_KEYS = Object.freeze(["U", "R", "D", "L"]);
+export const CALL_GLYPH = Object.freeze({ U: "↑", R: "→", D: "↓", L: "←" });
+const CALL_STEP = { U: 7, R: 4, D: -5, L: -2 };       // semitones from their own pitch
+
+export function callOf(seed, id) {
+  const r = stream(hash("call", seed, id));
+  return Array.from({ length: 4 }, () => CALL_KEYS[Math.floor(r() * 4)]).join("");
+}
+export function bendCall(call, seed, fakeId) {
+  const r = stream(hash("bendcall", seed, fakeId));
+  const i = Math.floor(r() * call.length);
+  const others = CALL_KEYS.filter((k) => k !== call[i]);
+  return call.slice(0, i) + others[Math.floor(r() * others.length)] + call.slice(i + 1);
+}
+/** The notes of a call, in a voice: each key a step from that voice's own pitch. */
+export function callNotes(v, call) {
+  const t = Math.max(0.2, v?.pace || 0.26), p = v?.pitch || 1600;
+  return [...call].map((k, i) => ({ freq: Math.round(p * ST(CALL_STEP[k] || 0)), dur: t * 0.9, slide: 0, at: Math.round(i * t * 1.15 * 100) / 100 }));
+}
+export const glyphs = (call) => [...(call || "")].map((k) => CALL_GLYPH[k]).join(" ");

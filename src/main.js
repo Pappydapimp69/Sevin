@@ -10,6 +10,7 @@ import { makeRoster } from "./names.js";
 import { stream, hash } from "./rng.js";
 import { chatter, verses } from "./percept.js";
 import * as Grove from "./grove.js";
+import { glyphs } from "./voice.js";
 import * as Save from "./save.js";
 import { createAudio } from "./audio.js";
 import { STUDIO, GAME, splashPrompt, skipSplash } from "./splash.js";
@@ -128,6 +129,18 @@ const campVerbs = {
     S.pass(sim, 0.5);
     return vs.length * 2600;
   },
+  learn: () => {
+    const people = S.party(sim).filter((m) => S.atCamp(sim, m) && !m.sleeping);
+    if (!people.length) { S.say(sim, "Nobody is up to whistle."); return; }
+    ui.learn(sim, people, {
+      callOf: (m) => S.callFor(sim, m),
+      play: (m) => audio.event({ kind: "call", voice: m.voice, call: S.callFor(sim, m) }, sim),
+      note: (k) => audio.event({ kind: "padnote", key: k }, sim),
+      // remembered under the name, as heard from whoever whistled it
+      learned: (m) => { (sim.learned ||= {})[m.name] = S.callFor(sim, m); },
+      done: () => S.pass(sim, 0.25),
+    });
+  },
   round: () => {
     const ps = S.party(sim).filter((m) => S.atCamp(sim, m));
     ps.forEach((m, i) => setTimeout(() => { if (sim) { S.say(sim, `${m.name} whistles.`, "talk"); audio.event({ kind: "sing", voice: m.voice, ctx: S.whistleCtx(sim, m) }, sim); } }, i * 2200));
@@ -164,8 +177,9 @@ function verb(v, arg) {
       break;
     }
     case "call": {
-      // a tap is a whistle; hold and it is louder, longer and carries farther (up to twice)
-      S.whistle(sim, Math.min(2, 1 + Math.max(0, (arg || 0) - 0.3) * 0.8));
+      // a tap is a whistle; hold it and the pad comes up, to play someone's call
+      if ((arg || 0) >= 0.45) { openPad(); break; }
+      S.whistle(sim, 1);
       S.say(sim, "You whistle.");
       break;
     }
@@ -195,6 +209,18 @@ function tap(x, y) {
   verbAct(t);
 }
 
+function openPad() {
+  ui.whistlePad(sim, sim.learned, {
+    note: (k) => audio.event({ kind: "padnote", key: k }, sim),
+    send: (seq) => {
+      if (seq.length < 4) { S.whistle(sim, 1); S.say(sim, "You whistle."); return; }
+      audio.event({ kind: "call", call: seq }, sim);
+      S.say(sim, "You whistle a call.");
+      S.playCall(sim, seq);
+    },
+  });
+}
+
 function doSleep() {
   if (!canSleep(sim)) { S.say(sim, sim.tutorial ? "Not here." : "Not yet. Sleep comes at dusk."); return; }
   const atFire = sim.camp.up && S.atCamp(sim, sim.player);
@@ -204,7 +230,8 @@ function doSleep() {
     campEvening(() => doSleep());
     return;
   }
-  if (atFire && sim.plan.duskDone !== S.today(sim)) { sim.plan.pending = "dusk"; openPending(true); return; }
+  // the watch is said to someone awake; come back after they have all turned in and there is nobody to ask
+  if (atFire && sim.plan.duskDone !== S.today(sim) && S.party(sim).some((m) => S.atCamp(sim, m) && !m.sleeping)) { sim.plan.pending = "dusk"; openPending(true); return; }
   if (!S.atCamp(sim, sim.player)) { ui.confirm(sim.camp.up ? "Sleep here, away from the camp and its fire?" : "Sleep with no camp?", () => goToSleep()); return; }
   goToSleep();
 }
@@ -369,6 +396,7 @@ function frame(now) {
       if (e.kind === "over") finish(sim.over);
       // a whistle back is heard, not seen: say where it came from
       if (e.kind === "answer") S.say(sim, `A whistle back, from the ${BEARINGS[S.seenBearing(sim, bearingOf(sim.player, e))]}.`);
+      if (e.kind === "callanswer") setTimeout(() => sim && S.say(sim, `A call back, from the ${BEARINGS[S.seenBearing(sim, bearingOf(sim.player, e))]}:  ${glyphs(e.call)}`), (e.delay || 1) * 1000);
     }
     if (!scene) sim.events.length = 0;
     const step = sim.tutorial ? tutorialStep(sim) : null;

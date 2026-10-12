@@ -12,7 +12,7 @@ import { makeRng, hash, stream } from "./rng.js";
 import { makeRoster } from "./names.js";
 import { generateWorld, tutorialWorld, CELL, AREA_H, toCell, center, open, placeName } from "./world.js";
 import { record, WEATHERS } from "./chronicle.js";
-import { makeVoice } from "./voice.js";
+import { makeVoice, callOf, bendCall } from "./voice.js";
 import { SKILLS, fillSkills, TASK_SKILL } from "./skills.js";
 import * as Phantom from "./phantom.js";
 import * as Mirage from "./mirage.js";
@@ -945,6 +945,38 @@ export function busy(sim, m) {
   return m.state === "home" && m.load > 0;
 }
 
+/** A person's call on the pad. The real one's from their id; a fake's, one note off theirs. */
+export function callFor(sim, m) {
+  if (m.fake) return bendCall(callOf(sim.seed, m.of ?? m.id), sim.seed, m.id);
+  return callOf(sim.seed, m.id);
+}
+
+/**
+ * Play a call on the pad. Whoever's call it is answers in their own call (a fake
+ * answers to the one it wears too, but in its own, one note off); by day, the
+ * nearest of them comes. The missing answer from the dark in the small hours.
+ * Anything else: an ordinary whistle.
+ */
+export function playCall(sim, call) {
+  sim.events.push({ kind: "callplayed", call, ctx: whistleCtx(sim, null) });
+  sim.stats.whistles = (sim.stats.whistles || 0) + 1;
+  const hits = [];
+  for (const m of party(sim)) {
+    const own = callFor(sim, m), worn = m.fake ? callOf(sim.seed, m.of ?? m.id) : own;
+    if ((call === own || call === worn) && !m.sleeping && dist(m, sim.player) <= HEAR * 3) hits.push(m);
+  }
+  for (const ms of sim.missing)
+    if (callOf(sim.seed, ms.id) === call && Grove.personOut(sim, ms) && dist(ms, sim.player) <= 70) hits.push(ms);
+  if (!hits.length) { say(sim, "Nobody answers to that."); return null; }
+  hits.forEach((m, i) => sim.events.push({ kind: "callanswer", id: m.id, name: m.name, x: m.x, y: m.y, voice: m.voice, call: m.fake ? callFor(sim, m) : callOf(sim.seed, m.id), delay: 1.2 + i * 1.6 }));
+  const near = hits.filter((m) => sim.members.includes(m)).sort((a, b) => dist(a, sim.player) - dist(b, sim.player))[0];
+  if (near && !isNight(sim.time)) {
+    near.summonUntil = sim.time + SUMMON_HOURS; near.state = "idle"; near.site = null; near.chopId = null;
+    say(sim, `${near.name} heard their call, and comes.`, "talk");
+  }
+  return hits.map((m) => m.id);
+}
+
 /** Called over: with you until their half hour is up. */
 export const summoned = (sim, m) => m.summonUntil != null && sim.time < m.summonUntil;
 export const SUMMON_HOURS = 0.5;                 // half an hour of the world's clock
@@ -1290,12 +1322,11 @@ export function tick(sim, dt, input = {}) {
     say(sim, "It is ten. One by one, they turn in.", "info");
   }
   for (const m of party(sim)) if (m.bedAt != null && sim.time >= m.bedAt) { m.bedAt = null; m.sleeping = true; m.state = "idle"; }
-  // by eleven you are asleep too: at camp, once the watch is said; anywhere else, where you stand
-  if (!sim.tutorial && hb >= EVENING_END && hb < 23 && hourOf(sim.time) >= 23) {
-    sim.time = before - hb + 23; hours = sim.time - before;
+  // still up at one: you do not remember lying down
+  if (!sim.tutorial && hb < 1 && hourOf(sim.time) >= 1 && hourOf(sim.time) < WAKE) {
     sim.work = null;
-    if (sim.camp.up && atCamp(sim, p) && sim.plan.duskDone !== today(sim)) sim.plan.pending = "dusk";
-    else sim.wantSleep = true;
+    say(sim, "You do not remember lying down.", "warn");
+    sim.wantSleep = true;
   }
   // awake at six: dawn comes on its own
   if (!sim.tutorial && hb >= WAKE && hb < DAWN && hourOf(sim.time) >= DAWN) {

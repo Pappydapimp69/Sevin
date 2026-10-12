@@ -3,7 +3,7 @@
 // pressed something, so `unlock` is called from the first input.
 
 import { isNight } from "./sim.js";
-import { notes, phrase, PLAYER_VOICE } from "./voice.js";
+import { notes, phrase, PLAYER_VOICE, callNotes } from "./voice.js";
 
 export function createAudio() {
   let ctx = null, master = null, noise = null;
@@ -139,6 +139,14 @@ export function createAudio() {
       case "reveal": tone(98, 2.8, 0.25, 0, -20, "sawtooth"); tone(104, 2.8, 0.2, 0, -20, "sawtooth"); break;
       case "glowOn": tone(880, 1.5, 0.08); tone(1320, 1.8, 0.05, 0, 0, "sine", 0.1); break;
       case "ate": tone(220, 3, 0.1, 0, -110, "triangle"); break;
+      case "padnote": whistleTone(0, 0.12, callNotes(PLAYER_VOICE, e.key)); break;
+      case "call": whistleTone(0, e.voice ? 0.14 : 0.2, callNotes(e.voice || PLAYER_VOICE, e.call)); break;
+      case "callanswer": {
+        const dx = e.x - sim.player.x, dy = e.y - sim.player.y, d = Math.hypot(dx, dy);
+        const pan = Math.max(-1, Math.min(1, Math.sin(Math.atan2(dx, dy) - sim.player.yaw)));
+        setTimeout(() => whistleTone(pan, Math.max(0.04, 0.16 * (1 - d / 80)), callNotes(e.voice, e.call)), (e.delay || 1) * 1000);
+        break;
+      }
       case "rescued": tone(392, 0.8, 0.2); break;
     }
   }

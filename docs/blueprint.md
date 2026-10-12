@@ -205,6 +205,20 @@ of. Moving a site leaves its wood behind too. Gatherers haul an old pile to the
 new camp or site on 80% of trips (side hash per trip). Tasks are set at camp, in
 daylight, any time; everyone starts on auto.
 
+## Calls: the whistle pad (`voice.callOf`, `sim.playCall`, `ui.whistlePad`, `ui.learn`)
+
+Like an ocarina. Everyone has a call: four notes, up/right/down/left, from the
+seed and their id; a fake's is the real one with one note moved. In the evening
+at the fire, "Learn their calls": each one awake whistles theirs and you play it
+back; learned, it is remembered under the NAME, as heard from whoever whistled
+it. Hold the whistle button for the pad (a tap is still a plain whistle):
+play four notes and whistle it. Whoever's call it is answers with their own
+call, shown as notes and heard from where they are; by day the nearest of them
+comes. A fake answers to the call it wears, but in its own, one note off. The
+missing answer from the dark in the small hours. Once everyone at camp has
+turned in there is nobody to learn from and nobody to set the watch with; still
+up at one, you drop where you stand.
+
 ## The morning choice (`ui.choose`, `percept.voteOf`)
 
 Two of one person cannot both see the morning. At dawn, if a rescued one sits

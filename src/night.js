@@ -36,7 +36,7 @@ export function swapOut(sim, taken, ang01, d01, d) {
   const sk = taken.skills;
   const fakeId = sim.nextId++;
   const fake = {
-    id: fakeId, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
+    id: fakeId, of: taken.id, name: taken.name, slot: taken.slot, fake: true, voice: bendVoice(taken.voice, sim.seed, fakeId),
     skills: Object.fromEntries(SKILLS.map((k) => [k, Math.min(6, (sk[k] || 0) + 1)])),
     sanity: 1, x: taken.x, y: taken.y, task: taken.task, state: "idle", stateT: 0, load: 0, worked: 0,
     goal: null, home: false, gone: false, quiet: 0, trainee: false, since: d + 1,
