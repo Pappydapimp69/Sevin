@@ -385,8 +385,9 @@ function tickMember(sim, m, dt, hours) {
   // camp to walk home to, they come back to you.
   if (lateDay && !m.called && (effTask(m) === "chop" || effTask(m) === "gather")) {
     // sent home once; someone already at camp is home
-    if (sim.camp.up) { if (m.state !== "home" && dist(m, sim.camp) > 5) { m.state = "home"; m.goal = { x: sim.camp.x, y: sim.camp.y }; } }
-    else { m.called = true; m.state = "idle"; }       // no camp: tonight they stay with you
+    const home = sim.camp.up ? sim.camp : sim.site;
+    if (home) { if (m.state !== "home" && dist(m, home) > 5) { m.state = "home"; m.goal = { x: home.x, y: home.y }; } }
+    else if (hr >= DUSK || hr < DAWN) { m.called = true; m.state = "idle"; }   // no campsite at dusk: tonight they stay with you
   }
 
   // Evening at camp: everyone not with you comes in to the fire, lights it
@@ -419,7 +420,10 @@ function tickMember(sim, m, dt, hours) {
   // Called to you (a whistle, or no camp to go back to): with you until
   // morning, when they go back to the task they were set.
   if (m.task === "auto") autoPick(sim, m);
-  switch (m.called || summoned(sim, m) ? "follow" : effTask(m)) {
+  // No camp to keep: keeping it means keeping its wood, so they gather for the pile.
+  let task = m.called || summoned(sim, m) ? "follow" : effTask(m);
+  if (task === "camp" && !sim.camp.up) task = "gather";
+  switch (task) {
     case "follow": {
       const near = 2.2 + (m.slot % 3) * 0.9;
       const d = dist(m, p);
@@ -449,7 +453,7 @@ function tickMember(sim, m, dt, hours) {
       const dest = woodDest(sim);
       if (m.state !== "gather" && m.state !== "carry" && m.state !== "haul") {
         // a new trip: most of the time, the old pile comes to the new camp first
-        const old = dest && (m.load || 0) === 0 ? sim.piles.find((pl) => pl.n > 0 && reachable(sim, m, pl)) : null;
+        const old = dest && (m.load || 0) === 0 ? sim.piles.find((pl) => pl !== dest && pl.n > 0 && reachable(sim, m, pl)) : null;
         m.trips = (m.trips || 0) + 1;
         if (old && stream(hash("haul", sim.seed, m.id, m.trips))() < HAUL_CHANCE) { m.state = "haul"; m.haul = old; }
         else { m.state = "gather"; m.site = woodSite(sim, m); }
@@ -461,7 +465,7 @@ function tickMember(sim, m, dt, hours) {
         if (steer(sim, m, pl.x, pl.y, speedOf(m), dt, 1.5)) {
           const take = Math.min(MEMBER_CARRY - (m.load || 0), pl.n);
           pl.n -= take; m.load = (m.load || 0) + take; m.from = { x: pl.x, y: pl.y };
-          sim.piles = sim.piles.filter((x) => x.n > 0);
+          sim.piles = sim.piles.filter((x) => x.n > 0 || x === woodDest(sim));
           m.state = "carry";
         }
         break;
@@ -490,7 +494,7 @@ function tickMember(sim, m, dt, hours) {
         // to the camp's pile, or the marked site; with neither, they wait by you holding it
         const to = dest || sim.player;
         if (steer(sim, m, to.x, to.y, speedOf(m), dt, 3) && dest) {
-          sim.camp.pile += m.load;
+          addWood(sim, dest, m.load);
           note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from.x, y: m.from.y });
           m.load = 0;
           m.state = "next";
@@ -629,7 +633,8 @@ function finishCampWork(sim, w) {
     sim.player.carryingKit = true;
     sim.campStruck = true;                              // from here only you can make camp
     sim.pitch = null;
-    for (const m of party(sim)) { if (m.task === "pitch") m.task = "follow"; if (m.autoTask === "pitch") m.autoTask = null; if (m.task === "camp") m.called = true; }
+    // the camp is gone, not the work: those using their judgement think again now
+    for (const m of party(sim)) { if (m.task === "pitch") m.task = "auto"; if (m.task === "auto") { m.autoTask = null; m.autoUntil = 0; } }
     say(sim, `Camp is down. The woodpile stays where it was; you carry the kit and the ${CAMP_WOOD} wood it was made of. Mark the next site to make camp again.`, "good");
     sim.events.push({ kind: "struck" });
   }
@@ -838,7 +843,12 @@ export function campSpot(sim) {
   return roomAt(sim, p.x, p.y) ? { x: p.x, y: p.y } : null;
 }
 /** Where gathered wood goes: the camp's pile, or the site you marked for one. */
-export const woodDest = (sim) => (sim.camp.up ? sim.camp : sim.site);
+// With neither, the pile the last camp left: the wood is still there to add to.
+export const woodDest = (sim) => (sim.camp.up ? sim.camp : sim.site || sim.piles[sim.piles.length - 1] || null);
+function addWood(sim, dest, n) {
+  if (dest === sim.camp || dest === sim.site) sim.camp.pile += n;
+  else dest.n += n;
+}
 /** Mark where the camp goes. Wood brought here waits for it. A site moved leaves its wood behind. */
 export function canMarkSite(sim) { return !sim.camp.up && !sim.pitch && !sim.work && !!campSpot(sim); }
 export function markSite(sim) {
@@ -1116,7 +1126,7 @@ export function autoScores(sim, m) {
   s.gather = (sim.camp.up
     ? Math.max(0, 7 - sim.camp.pile) + m.skills.carry * 0.5 - others("gather") * 1.5
     : Math.max(1, CAMP_WOOD + 2 - sim.camp.pile) * 1.5 + m.skills.carry * 0.5 - others("gather") * 0.4)
-    + (woodDest(sim) && sim.piles.some((pl) => pl.n > 0) ? 3 : 0);       // an old pile to bring over
+    + (woodDest(sim) && sim.piles.some((pl) => pl !== woodDest(sim) && pl.n > 0) ? 3 : 0);       // an old pile to bring over
   const i = currentDeadfall(sim);
   if (i >= 0 && reachable(sim, m, sim.world.deadfalls[i])) s.chop = 4 + m.skills.cut * 0.8 - others("chop") * 0.5;
   if (sim.camp.up) s.camp = 1.5 + m.skills.fire * 0.5 + (hourOf(sim.time) >= DUSK - 3 ? 3 : 0) - others("camp") * 2;
