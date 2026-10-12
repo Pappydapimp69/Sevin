@@ -111,17 +111,20 @@ function placeMissing(sim, from, ang, d01) {
  */
 function passNight(sim, hours) {
   const p = sim.player, camp = sim.camp;
-  let fuel = camp.up && camp.lit ? camp.fire : 0;
+  // a lit fire takes from the pile all night, a piece an hour, until the pile is gone
   const watchers = party(sim).filter((m) => m.watch && atCamp(sim, m));
-  if (camp.up && camp.lit && watchers.length && fuel < hours * burnRate(sim)) {
-    const per = Math.max(...watchers.map((w) => burnHours(w)));
-    const need = Math.ceil((hours * burnRate(sim) - fuel) / per), use = Math.min(need, camp.pile);
-    camp.pile -= use; fuel += use * per;
-  }
-  const burn = hours * burnRate(sim);          // deeper, the fire eats wood faster
-  const fireHeld = camp.up && fuel >= burn;
+  const lit = camp.up && camp.lit;
+  const fuel = lit ? camp.fire + camp.pile : 0;
+  const burn = hours * burnRate(sim);
+  const fireHeld = lit && fuel >= burn;
   const fireHours = Math.min(fuel / burnRate(sim), hours);
-  if (camp.up) { camp.fire = fuel - burn > 1e-6 ? fuel - burn : 0; camp.lit = camp.fire > 0; }   // a fire with no fuel is out, not lit
+  if (lit) {
+    let left = burn - camp.fire;
+    if (left <= 0) camp.fire -= burn;
+    else { const take = Math.min(camp.pile, Math.ceil(left - 1e-9)); camp.pile -= take; camp.fire = Math.max(0, take - left); }
+    camp.lit = camp.fire > 1e-6 || camp.pile > 0 && fireHeld;
+    if (!fireHeld) { camp.fire = 0; camp.lit = false; }
+  }
   for (const b of [p, ...party(sim)]) {
     if (b.fake) continue;
     const area = areaAt(sim, b.y);

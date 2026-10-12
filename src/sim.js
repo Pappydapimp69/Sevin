@@ -73,7 +73,14 @@ export const WOOD_CHOP_HOURS = 1;
 export function woodPerChop() { return 1; }          // one piece an hour's chop
 
 /** Deeper woods eat the fire faster: +50% a level of depth below the first. */
-export const burnRate = (sim) => 1 + 0.5 * areaAt(sim, sim.camp.y);
+export const burnRate = () => 1;      // a lit fire eats one piece of the pile an hour
+export const WOODPILE_MAX = 15;       // what a camp's woodpile holds
+/** Put wood on the camp's (or site's) pile, up to what it holds. Returns what did not fit. */
+export function toPile(sim, n) {
+  const room = Math.max(0, WOODPILE_MAX - sim.camp.pile), put = Math.min(room, n);
+  sim.camp.pile += put;
+  return n - put;
+}
 export const STRIKE_HOURS = 2;
 
 // ---------------------------------------------------------------------------
@@ -420,7 +427,7 @@ function tickMember(sim, m, dt, hours) {
   if (m.state === "home") {
     if (steer(sim, m, m.goal.x, m.goal.y, speedOf(m), dt, 1)) {
       if (m.load > 0) {
-        sim.camp.pile += m.load;
+        m.load = toPile(sim, m.load);
         note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from?.x ?? m.x, y: m.from?.y ?? m.y });
         m.load = 0;
       }
@@ -506,9 +513,8 @@ function tickMember(sim, m, dt, hours) {
         // to the camp's pile, or the marked site; with neither, they wait by you holding it
         const to = dest || sim.player;
         if (steer(sim, m, to.x, to.y, speedOf(m), dt, 3) && dest) {
-          addWood(sim, dest, m.load);
+          m.load = addWood(sim, dest, m.load) || 0;           // a full pile leaves the rest in their arms
           note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: m.from.x, y: m.from.y });
-          m.load = 0;
           m.state = "next";
         }
       }
@@ -539,7 +545,7 @@ function tickMember(sim, m, dt, hours) {
       if (sim.camp.pile < 8) {
         m.kept = (m.kept || 0) + hours;
         if (m.kept >= 1.5) {
-          m.kept = 0; sim.camp.pile += 1;
+          m.kept = 0; toPile(sim, 1);
           note(sim, { verb: "gathered", actor: m.id, object: "firewood", cls: "wood", x: sim.camp.x, y: sim.camp.y });
         }
       }
@@ -823,10 +829,10 @@ export function tendFire(sim) {
   if (sim.camp.pile <= 0) { say(sim, "The woodpile is empty."); return false; }
   sim.camp.pile -= 1;
   if (!sim.camp.lit) {
-    sim.camp.lit = true; sim.camp.fire = 3;
+    sim.camp.lit = true; sim.camp.fire = 1;
     note(sim, { verb: "lit", actor: "you", object: "fire", cls: "fire", x: sim.camp.x, y: sim.camp.y });
     sim.events.push({ kind: "lit" });
-  } else sim.camp.fire = Math.min(12, sim.camp.fire + 1.5);
+  } else sim.camp.fire = Math.min(12, sim.camp.fire + 1);
   return true;
 }
 
@@ -834,10 +840,10 @@ export function tendFire(sim) {
 function dropWood(sim) {
   // at the camp, or at the site you marked for one
   const at = sim.camp.up ? (!sim.player.carryingKit && dist(sim.player, sim.camp) < CAMP_R * 0.6) : sim.site && dist(sim.player, sim.site) < 4;
-  if (at && (sim.player.wood > 0 || sim.phantom.extra > 0)) {
-    sim.camp.pile += sim.player.wood;
-    say(sim, `You drop ${Phantom.shownWood(sim)} wood on the pile.`);   // what you believed you had
-    sim.player.wood = 0;
+  if (at && (sim.player.wood > 0 || sim.phantom.extra > 0) && sim.camp.pile < WOODPILE_MAX) {
+    const before = Phantom.shownWood(sim);
+    sim.player.wood = toPile(sim, sim.player.wood);          // what does not fit stays in your arms
+    say(sim, sim.player.wood ? `The pile is full. You keep ${sim.player.wood}.` : `You drop ${before} wood on the pile.`);   // what you believed you had
     sim.phantom.extra = 0;
     sim.events.push({ kind: "dropped" });
   }
@@ -860,8 +866,9 @@ export function campSpot(sim) {
 // With neither, the pile the last camp left: the wood is still there to add to.
 export const woodDest = (sim) => (sim.camp.up ? sim.camp : sim.site || sim.piles[sim.piles.length - 1] || null);
 function addWood(sim, dest, n) {
-  if (dest === sim.camp || dest === sim.site) sim.camp.pile += n;
+  if (dest === sim.camp || dest === sim.site) return toPile(sim, n);
   else dest.n += n;
+  return 0;
 }
 /** Mark where the camp goes. Wood brought here waits for it. A site moved leaves its wood behind. */
 export function canMarkSite(sim) { return !sim.camp.up && !sim.pitch && !sim.work && !!campSpot(sim); }
@@ -1206,7 +1213,7 @@ function pitchDone(sim) {
   const yours = dist(sim.player, P) < 8 ? sim.player.wood : 0;
   sim.player.wood -= yours;
   if (sim.work?.kind === "make") sim.work = null;
-  sim.camp = { up: true, x: P.x, y: P.y, pile: sim.camp.pile + carried + yours, fire: 0, lit: false };
+  sim.camp = { up: true, x: P.x, y: P.y, pile: Math.min(WOODPILE_MAX, sim.camp.pile + carried + yours), fire: 0, lit: false };
   sim.site = null;
   sim.player.carryingKit = false;
   for (const id of P.hands) { const h = byId(sim, id); if (h) practice(sim, h, "build"); }
@@ -1357,9 +1364,10 @@ export function tick(sim, dt, input = {}) {
   const fw = sim.falseWhistle;
   if (fw && sim.time >= fw.at) { sim.falseWhistle = null; sim.events.push({ kind: "answer", x: fw.x, y: fw.y, voice: fw.voice, ctx: whistleCtx(sim, { x: fw.x, y: fw.y, slot: fw.slot }) }); }
 
-  // the fire burns whenever it is lit
+  // the fire burns whenever it is lit, and takes from the pile as it goes: a piece an hour
   if (sim.camp.lit) {
     sim.camp.fire -= hours * burnRate(sim);
+    while (sim.camp.fire <= 0 && sim.camp.pile > 0) { sim.camp.pile -= 1; sim.camp.fire += 1; }
     if (sim.camp.fire <= 0) { sim.camp.fire = 0; sim.camp.lit = false; sim.events.push({ kind: "fireOut" }); Phantom.onFireOut(sim); }
   }
   Phantom.tickPhantom(sim, hours);
