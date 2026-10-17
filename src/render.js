@@ -22,6 +22,10 @@ const WEATHER_LOOK = {
 export function createRenderer(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const camera = new THREE.PerspectiveCamera(72, 1, 0.1, 400);
   camera.rotation.order = "YXZ";
   let scene = null, built = null, calmPref = false;
@@ -59,53 +63,86 @@ export function createRenderer(canvas) {
     scene.fog = new THREE.Fog(0x9cc3de, 10, 70);
     B.hemi = new THREE.HemisphereLight(0xdfe9f3, 0x2a3320, 1.0);
     scene.add(B.hemi);
+    // the sun walks east to west and throws shadows near you; the shadow box follows you
     B.sun = new THREE.DirectionalLight(0xfff2dd, 0.8);
     B.sun.position.set(40, 80, 20);
-    scene.add(B.sun);
+    B.sun.castShadow = true;
+    B.sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(B.sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 160 });
+    B.sun.shadow.bias = -0.0006; B.sun.shadow.normalBias = 0.04;
+    scene.add(B.sun, B.sun.target);
+    B.sky = skyDome();
+    scene.add(B.sky);
 
-    // ground, with the walkable ground painted in as a texture
+    // ground, with the walkable ground painted in as a texture: the cells (trail,
+    // walkable, thicket) exactly as before, with the dirt and moss of a floor in them
     const { w, h } = world;
-    const data = new Uint8Array(w * h * 4);
-    for (let cy = 0; cy < h; cy++)
-      for (let cx = 0; cx < w; cx++) {
-        const i = (cy * w + cx) * 4, o = world.walk[cy * w + cx];
-        const trail = (Math.abs(cx - world.trailX[cy]) <= 1.5 || world.decoyCells.has(cy * w + cx)) && o;
-        const c = trail ? [118, 96, 64] : o ? [92, 110, 60] : [38, 56, 32];
-        data.set([...c, 255], i);
+    const R = 4;                                  // texels per cell
+    const cellCol = (cx, cy) => {
+      cx = Math.max(0, Math.min(w - 1, cx)); cy = Math.max(0, Math.min(h - 1, cy));
+      const o = world.walk[cy * w + cx];
+      const trail = (Math.abs(cx - world.trailX[cy]) <= 1.5 || world.decoyCells.has(cy * w + cx)) && o;
+      return trail ? [112, 90, 62] : o ? [78, 98, 52] : [34, 52, 30];
+    };
+    const data = new Uint8Array(w * R * h * R * 4);
+    for (let py = 0; py < h * R; py++)
+      for (let px = 0; px < w * R; px++) {
+        // blend the four nearest cells, so edges are soft but stay where they were
+        const fx = px / R - 0.5, fy = py / R - 0.5, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+        const a = cellCol(x0, y0), b = cellCol(x0 + 1, y0), c = cellCol(x0, y0 + 1), d = cellCol(x0 + 1, y0 + 1);
+        const n = (hash2(px, py) - 0.5) * 18 + (vnoise(px / 9, py / 9) - 0.5) * 26;
+        const warm = (vnoise(px / 23 + 40, py / 23) - 0.5) * 16;
+        const i = (py * w * R + px) * 4;
+        for (let k = 0; k < 3; k++) {
+          const v = (a[k] * (1 - tx) + b[k] * tx) * (1 - ty) + (c[k] * (1 - tx) + d[k] * tx) * ty;
+          data[i + k] = Math.max(0, Math.min(255, v + n + (k === 0 ? warm : k === 2 ? -warm : 0)));
+        }
+        data[i + 3] = 255;
       }
-    const tex = new THREE.DataTexture(data, w, h);
+    const tex = new THREE.DataTexture(data, w * R, h * R);
     tex.magFilter = THREE.LinearFilter;
+    tex.colorSpace = THREE.SRGBColorSpace;
     tex.needsUpdate = true;
     B.groundMat = new THREE.MeshLambertMaterial({ map: tex });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(w * CELL, h * CELL), B.groundMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.set((w * CELL) / 2, 0, -(h * CELL) / 2);
     // the texture's v runs bottom-up, which is y north: plane +y maps to -z
+    ground.receiveShadow = true;
     scene.add(ground);
-    const outer = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0x1f2f1b }));
+    const outer = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshLambertMaterial({ color: 0x22341e }));
+    outer.receiveShadow = true;
     outer.rotation.x = -Math.PI / 2; outer.position.set((w * CELL) / 2, -0.05, -(h * CELL) / 2);
     scene.add(outer);
 
-    // trees
+    // trees: a tapered trunk and a crown of stacked tiers, each tree its own shade.
+    // The crown's centre sits where the old single cone's did (illusions.js moves it).
     const n = world.trees.length;
-    const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.18, 0.28, 3, 6), new THREE.MeshLambertMaterial({ color: 0x4a3524 }), n);
-    const crownGeo = new THREE.ConeGeometry(1.5, 5, 7);
-    const crownA = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: 0x1f4a2a }), n);
-    const crownB = new THREE.InstancedMesh(crownGeo, new THREE.MeshLambertMaterial({ color: 0x2c5a31 }), n);
-    const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+    const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3, 7), new THREE.MeshLambertMaterial({ color: 0xffffff }), n);
+    const crownGeo = tiers([[1.75, 2.6, -1.25], [1.4, 2.4, -0.1], [1.0, 2.1, 1.0], [0.55, 1.5, 1.85]]);
+    const crownMat = () => new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+    const crownA = new THREE.InstancedMesh(crownGeo, crownMat(), n);
+    const crownB = new THREE.InstancedMesh(crownGeo, crownMat(), n);
+    const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
     let a = 0, b = 0;
     B.treeSlots = [];
     world.trees.forEach((t, i) => {
       s.set(t.s, t.s, t.s);
       p.set(t.x, 1.5 * t.s, -t.y);
       mtx.compose(p, q, s); trunk.setMatrixAt(i, mtx);
+      trunk.setColorAt(i, col.setHSL(0.07 + hash2(i, 3) * 0.03, 0.32, 0.17 + hash2(i, 4) * 0.08));
       p.set(t.x, (3 + 2.2) * t.s, -t.y);
       mtx.compose(p, q, s);
-      if (t.k < 0.5) { B.treeSlots.push({ arr: crownA, idx: a }); crownA.setMatrixAt(a++, mtx); } else { B.treeSlots.push({ arr: crownB, idx: b }); crownB.setMatrixAt(b++, mtx); }
+      const j = hash2(i, 7), l = hash2(i, 9);
+      if (t.k < 0.5) { B.treeSlots.push({ arr: crownA, idx: a }); crownA.setColorAt(a, col.setHSL(0.36 + j * 0.05, 0.42, 0.13 + l * 0.06)); crownA.setMatrixAt(a++, mtx); }
+      else { B.treeSlots.push({ arr: crownB, idx: b }); crownB.setColorAt(b, col.setHSL(0.27 + j * 0.06, 0.38, 0.19 + l * 0.07)); crownB.setMatrixAt(b++, mtx); }
     });
     crownA.count = a; crownB.count = b;
+    for (const m of [trunk, crownA, crownB]) { m.castShadow = true; m.instanceColor.needsUpdate = true; }
+    trunk.receiveShadow = true;
     B.crowns = [crownA, crownB]; B.trunkInst = trunk;
     scene.add(trunk, crownA, crownB);
+    scene.add(groundCover(world));
 
     // landmarks, each drawn as what it is named
     for (const c of world.clearings) scene.add(landmark(c, world));
@@ -132,6 +169,7 @@ export function createRenderer(canvas) {
       }
       const mid = df.cells.reduce((s, c) => s + c[0], 0) / df.cells.length;
       g.add(left, right, cut);
+      g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
       g.position.set(mid * CELL + CELL / 2, 0, -df.y);
       scene.add(g);
       const hit = new THREE.Mesh(new THREE.BoxGeometry(len, 2, 2), HIDDEN);
@@ -199,7 +237,11 @@ export function createRenderer(canvas) {
     B.particles = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xaabbcc, size: 0.06 }));
     scene.add(B.particles);
 
-    B.figureGeo = { body: new THREE.CylinderGeometry(0.3, 0.35, 1.2, 8), head: new THREE.SphereGeometry(0.24, 10, 8) };
+    B.figureGeo = {
+      body: new THREE.CapsuleGeometry(0.27, 0.5, 4, 10), head: new THREE.SphereGeometry(0.21, 14, 10),
+      hat: new THREE.CylinderGeometry(0.17, 0.23, 0.14, 12), pack: new THREE.BoxGeometry(0.42, 0.5, 0.22),
+      limb: new THREE.CapsuleGeometry(0.075, 0.45, 3, 6), leg: new THREE.CapsuleGeometry(0.1, 0.55, 3, 6),
+    };
     return B;
   }
 
@@ -223,19 +265,25 @@ export function createRenderer(canvas) {
 
   function figure(colour, pick) {
     const g = new THREE.Group();
+    const G = built.figureGeo;
     const mat = new THREE.MeshLambertMaterial({ color: colour });
-    const body = new THREE.Mesh(built.figureGeo.body, mat);
-    body.position.y = 0.85;
-    const head = new THREE.Mesh(built.figureGeo.head, new THREE.MeshLambertMaterial({ color: 0xe0c3a0 }));
+    const dark = new THREE.MeshLambertMaterial({ color: new THREE.Color(colour).multiplyScalar(0.45) });
+    const skin = new THREE.MeshLambertMaterial({ color: 0xd9b48f });
+    const body = new THREE.Mesh(G.body, mat);
+    body.position.y = 1.08;
+    const head = new THREE.Mesh(G.head, skin);
     head.position.y = 1.7;
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.5, 0.25), new THREE.MeshLambertMaterial({ color: 0x3d3b30 }));
-    pack.position.set(0, 1.1, 0.3);
+    const hat = new THREE.Mesh(G.hat, dark); hat.position.y = 1.86;
+    const pack = new THREE.Mesh(G.pack, new THREE.MeshLambertMaterial({ color: 0x4a4434 }));
+    pack.position.set(0, 1.2, 0.26);
+    const arms = [-1, 1].map((sd) => { const a = new THREE.Group(); a.position.set(0.33 * sd, 1.42, 0); const m = new THREE.Mesh(G.limb, mat); m.position.y = -0.3; a.add(m); return a; });
     const upper = new THREE.Group();             // bends at the hips when working
-    upper.position.y = 0.3;
-    body.position.y -= 0.3; head.position.y -= 0.3; pack.position.y -= 0.3;
-    upper.add(body, head, pack);
+    upper.position.y = 0.75;
+    for (const o of [body, head, hat, pack, ...arms]) { o.position.y -= 0.75; upper.add(o); }
+    const legs = [-1, 1].map((sd) => { const l = new THREE.Group(); l.position.set(0.13 * sd, 0.78, 0); const m = new THREE.Mesh(G.leg, dark); m.position.y = -0.38; l.add(m); g.add(l); return l; });
     g.add(upper);
-    g.userData.body = upper;
+    g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    g.userData.body = upper; g.userData.arms = arms; g.userData.legs = legs;
     if (pick) {
       const hit = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2, 8), HIDDEN);
       hit.position.y = 1; hit.userData.pick = pick; hit.userData.owner = g;
@@ -243,6 +291,12 @@ export function createRenderer(canvas) {
     }
     scene.add(g);
     return g;
+  }
+  // limbs: a walk swings them by the step phase; still, they hang
+  function limbs(f, phase, amp) {
+    const [la, ra] = f.userData.arms, [ll, rl] = f.userData.legs;
+    la.rotation.x = Math.sin(phase) * amp; ra.rotation.x = -Math.sin(phase) * amp;
+    ll.rotation.x = -Math.sin(phase) * amp * 0.9; rl.rotation.x = Math.sin(phase) * amp * 0.9;
   }
 
   function draw(sim, dt, view = {}) {
@@ -280,8 +334,14 @@ export function createRenderer(canvas) {
     if (ill.skyTint) { sky.lerp(new THREE.Color(0x6f8a5c), ill.skyTint * day + ill.skyTint * 0.2); scene.background = sky; scene.fog.color = sky; }
     scene.fog.far *= ill.fogMul; scene.fog.near = scene.fog.far * 0.15;
     if (Math.abs(ill.fovAdd - fovAdd) > 0.01) { fovAdd += (ill.fovAdd - fovAdd) * Math.min(1, dt * 6); camera.fov = baseFov + fovAdd; camera.updateProjectionMatrix(); }
-    B.hemi.intensity = (0.12 + look.light * 0.9 * day) * ill.lightMul;
-    B.sun.intensity = 0.8 * look.light * day;
+    // low sun is warm and long; by night the sky light is a cold blue, not brown
+    const low = Math.max(0, 1 - Math.abs(h - 12) / 6.5) ;            // 1 at noon, 0 at 05:30 / 18:30
+    const warmth = day * (1 - Math.min(1, low * 1.6));
+    B.hemi.color.set(0xdfe9f3).lerp(new THREE.Color(0xffc89a), warmth * 0.45).lerp(new THREE.Color(0x5a6f9a), 1 - day);
+    B.hemi.groundColor.set(0x3a3a22).lerp(new THREE.Color(0x141a26), 1 - day);
+    B.hemi.intensity = (1.1 - 0.55 * day + look.light * 0.6 * day) * ill.lightMul;
+    B.sun.intensity = 1.9 * look.light * day * (weather === "fog" || weather === "drizzle" ? 0.45 : 1);
+    B.sun.color.set(0xfff2dd).lerp(new THREE.Color(0xff9a55), warmth * 0.8);
     B.groundMat.color.set(weather === "cold" ? 0xdfe8ee : 0xffffff);
 
     // camera: your eyes, unless a scene (going to sleep) is holding it
@@ -289,6 +349,23 @@ export function createRenderer(canvas) {
     camera.position.set(cam.x, cam.h, -cam.y);
     camera.rotation.y = -cam.yaw;
     camera.rotation.x = cam.pitch;
+
+    // the sun's place: up in the east at 06:00, over the south at noon, down in the west at 18:00
+    const arc = ((h - 6) / 12) * Math.PI;
+    const sunDir = new THREE.Vector3(Math.cos(arc), Math.max(0.12, Math.sin(arc)) * 0.9, 0.35).normalize();
+    // the shadow box rides with you, stepped to whole texels so edges do not crawl
+    const step = 68 / 2048, fx = Math.round(cam.x / step) * step, fz = Math.round(-cam.y / step) * step;
+    B.sun.target.position.set(fx, 0, fz);
+    B.sun.position.set(fx + sunDir.x * 80, sunDir.y * 80, fz + sunDir.z * 80);
+    B.sun.castShadow = day > 0.05;
+    const U = B.sky.material.uniforms;
+    U.horizon.value.copy(sky);
+    U.zenith.value.copy(sky).lerp(new THREE.Color(0x2d5f93), 0.55 * day * (weather === "clear" || weather === "wind" ? 1 : 0.35)).lerp(new THREE.Color(0x02030a), (1 - day) * 0.7);
+    U.sunDir.value.copy(sunDir);
+    U.sunCol.value.copy(B.sun.color);
+    U.glow.value = day * (weather === "fog" ? 0.2 : weather === "drizzle" ? 0.3 : 1);
+    U.stars.value = Math.max(0, 1 - day * 8) * (weather === "clear" || weather === "cold" ? 1 : 0.15);
+    B.sky.position.copy(camera.position);
 
     // deadfalls: the cut opens as the work goes; cleared, the log rolls aside
     sim.deadfalls.forEach((d, i) => {
@@ -358,8 +435,21 @@ export function createRenderer(canvas) {
     const seenFire = shownFire(sim);          // a failing mind can see a fire that is out
     const fuel = seenFire.lit ? Math.min(1, seenFire.fire / 6) : 0;
     C.flame.visible = seenFire.lit;
-    C.flame.scale.set(0.5 + fuel, 0.4 + fuel * 1.4 + Math.sin(sim.time * 400) * 0.06, 0.5 + fuel);
-    C.light.intensity = seenFire.lit ? 6 + fuel * 18 : 0;
+    C.hearth.visible = prog >= 0.9;
+    const tNow = performance.now() / 1000;
+    const flick = 0.85 + 0.1 * Math.sin(tNow * 11.3) + 0.06 * Math.sin(tNow * 23.7 + 1.3) + 0.04 * Math.sin(tNow * 41.1);
+    C.flame.scale.set(0.5 + fuel, (0.4 + fuel * 1.4) * flick, 0.5 + fuel);
+    C.flame.userData.tongues.forEach((tg, k) => { tg.rotation.y = tNow * (0.6 + k * 0.5); tg.scale.y = 0.9 + 0.15 * Math.sin(tNow * (9 + k * 4) + k); });
+    if (seenFire.lit) {
+      const ea = C.flame.userData.embers.geometry.attributes.position, arr = ea.array;
+      for (let i = 0; i < arr.length / 3; i++) {
+        const life = (tNow * 0.45 + hash2(i, 1)) % 1, a = hash2(i, 2) * 6.283 + life * 3;
+        arr[i * 3] = Math.cos(a) * (0.1 + life * 0.35); arr[i * 3 + 1] = 0.3 + life * 2.6; arr[i * 3 + 2] = Math.sin(a) * (0.1 + life * 0.35);
+      }
+      ea.needsUpdate = true;
+      C.flame.userData.embers.material.opacity = 1 - day * 0.85;
+    }
+    C.light.intensity = seenFire.lit ? (6 + fuel * 18) * flick : 0;
     C.light.distance = 10 + fuel * 18;
     C.pile.forEach((l, k) => (l.visible = k < camp.pile));
 
@@ -386,7 +476,7 @@ export function createRenderer(canvas) {
       // asleep: in the tents at camp, or lying where they are
       if (m.sleeping && !m.watch) {
         if (sim.camp.up && Math.hypot(m.x - sim.camp.x, m.y - sim.camp.y) < 14) { f.visible = false; seen.add(m.id); continue; }
-        f.userData.body.rotation.x = Math.PI / 2; f.position.set(m.x, 0.15, -m.y); seen.add(m.id); continue;
+        f.userData.body.rotation.x = Math.PI / 2; f.position.set(m.x, 0.15, -m.y); limbs(f, 0, 0); f.userData.legs.forEach((l) => (l.visible = false)); seen.add(m.id); continue;
       }
       const prev = f.userData.prev || { x: m.x, y: m.y };
       const mv = Math.hypot(m.x - prev.x, m.y - prev.y);
@@ -396,18 +486,23 @@ export function createRenderer(canvas) {
       // working: bent to it, a steady rhythm; sitting at the fire: lower
       const working = m.state === "work" || (m.workT != null && sim.time - m.workT < 0.03);
       const now = performance.now() / 1000;
+      f.userData.legs.forEach((l) => (l.visible = true));
       if (working) {
         const swing = Math.sin(now * 7 + m.slot);
         f.userData.body.rotation.x = 0.35 + swing * 0.2;
+        f.userData.arms.forEach((a) => (a.rotation.x = -1.2 - swing * 0.6)); f.userData.legs.forEach((l) => (l.rotation.x = 0));
         f.position.set(m.x, Math.max(0, swing) * 0.05, -m.y);
         if (sim.pitch && mv < 0.001) f.rotation.y = Math.atan2(-(sim.pitch.x - m.x), -(sim.pitch.y - m.y));
       } else if (m.state === "sit") {
         f.userData.body.rotation.x = 0.1;
         f.position.set(m.x, -0.45, -m.y);
+        limbs(f, 0, 0); f.userData.legs.forEach((l) => (l.rotation.x = -1.4)); f.userData.arms.forEach((a) => (a.rotation.x = -0.5));
         if (sim.camp.up) f.rotation.y = Math.atan2(-(sim.camp.x - m.x), -(sim.camp.y - m.y));
       } else {
         f.userData.body.rotation.x = 0;
         f.position.set(m.x, Math.abs(Math.sin(f.userData.bob)) * 0.06, -m.y);
+        f.userData.amp = (f.userData.amp || 0) + ((mv > 0.001 ? 0.6 : 0) - (f.userData.amp || 0)) * Math.min(1, dt * 8);
+        limbs(f, f.userData.bob, f.userData.amp);
       }
       // a mind going: out of your sight they turn to watch you, and look away when you look
       if (mindLevel(sim) < 0.55 && !sim.tutorial) {
@@ -569,6 +664,7 @@ function pylonMesh(mossed) {
   crystal.position.y = 3.7;
   const light = new THREE.PointLight(0x000000, 0, 18);
   light.position.y = 3.7;
+  stone.castShadow = true;
   g.add(stone, crystal, light);
   g.userData = { crystal, light };
   return g;
@@ -576,9 +672,17 @@ function pylonMesh(mossed) {
 
 function campMesh() {
   const g = new THREE.Group();
-  const tent = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2, 4), new THREE.MeshLambertMaterial({ color: 0x8a7f5a }));
+  const tent = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2, 4), new THREE.MeshLambertMaterial({ color: 0xb07a3a, flatShading: true }));
   tent.position.set(TENTS[0].dx, 1.1, -TENTS[0].dy); tent.rotation.y = Math.PI / 4;
-  const tent2 = tent.clone(); tent2.position.set(TENTS[1].dx, 1.1, -TENTS[1].dy);
+  const tent2 = new THREE.Mesh(tent.geometry, new THREE.MeshLambertMaterial({ color: 0x5f7040, flatShading: true }));
+  tent2.position.set(TENTS[1].dx, 1.1, -TENTS[1].dy); tent2.rotation.y = Math.PI / 4;
+  // a dark doorway on the face toward the fire
+  for (const t of [tent, tent2]) {
+    const door = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.25, 3), new THREE.MeshBasicMaterial({ color: 0x14100c }));
+    const toFire = Math.atan2(-t.position.x, -t.position.z) - t.rotation.y;
+    door.position.set(Math.sin(toFire) * 0.62, -0.38, Math.cos(toFire) * 0.62); door.scale.z = 0.12; door.rotation.y = toFire;
+    t.add(door);
+  }
   const ringMat = new THREE.MeshLambertMaterial({ color: 0x55575a });
   const stones = [];
   for (let k = 0; k < 8; k++) {
@@ -587,8 +691,27 @@ function campMesh() {
     s.position.set(Math.cos(k * 0.785) * 0.8, 0.12, Math.sin(k * 0.785) * 0.8);
     g.add(s);
   }
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 8), new THREE.MeshBasicMaterial({ color: 0xffa040 }));
-  flame.position.y = 0.6;
+  // the fire: three tongues, hot in the middle, over charred logs, sparks going up
+  const flame = new THREE.Group();
+  const tongue = (r, hgt, col, op) => {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(r, hgt, 9, 1, true), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+    m.position.y = hgt / 2; flame.add(m); return m;
+  };
+  flame.userData.tongues = [tongue(0.5, 1.2, 0xff5a1a, 0.75), tongue(0.36, 1.0, 0xff9a30, 0.8), tongue(0.2, 0.7, 0xffe08a, 0.9)];
+  const N = 40, ep = new Float32Array(N * 3);
+  const embers = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(ep, 3)),
+    new THREE.PointsMaterial({ color: 0xffb060, size: 0.06, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  embers.frustumCulled = false;
+  flame.add(embers); flame.userData.embers = embers;
+  const coal = new THREE.Mesh(new THREE.CircleGeometry(0.62, 12), new THREE.MeshBasicMaterial({ color: 0xff6a20 }));
+  coal.rotation.x = -Math.PI / 2; coal.position.y = 0.03; flame.add(coal);
+  const char = new THREE.MeshLambertMaterial({ color: 0x1e1712 });
+  const hearth = new THREE.Group();
+  for (let k = 0; k < 4; k++) {
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 1.0, 6), char);
+    l.rotation.set(0.95, (k / 4) * Math.PI * 2, 0, "YXZ"); l.position.set(Math.sin((k / 4) * Math.PI * 2) * 0.22, 0.25, Math.cos((k / 4) * Math.PI * 2) * 0.22);
+    hearth.add(l);
+  }
   const light = new THREE.PointLight(0xff9a50, 0, 20, 1.5);
   light.position.y = 1.4;
   const pile = [];
@@ -606,8 +729,9 @@ function campMesh() {
   const poles = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 0.25), new THREE.MeshLambertMaterial({ color: 0x6b4c30 }));
   poles.position.set(0, 0.1, 0.5);
   kit.add(roll, poles); kit.position.set(-0.5, 0, -2.6);
-  g.add(tent, tent2, flame, light, kit);
-  return { g, flame, light, pile, tents: [tent, tent2], stones, kit };
+  tent.castShadow = tent2.castShadow = true;
+  g.add(tent, tent2, flame, light, kit, hearth);
+  return { g, flame, light, pile, tents: [tent, tent2], stones, kit, hearth };
 }
 
 function landmark(c, world) {
@@ -616,7 +740,7 @@ function landmark(c, world) {
   const M = (col) => new THREE.MeshLambertMaterial({ color: col });
   switch (c.kind) {
     case "creek": {
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, c.r * 2.6), new THREE.MeshLambertMaterial({ color: 0x3f7fb0, emissive: 0x0a1a2a }));
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, c.r * 2.6), new THREE.MeshPhongMaterial({ color: 0x2f6a90, emissive: 0x06121c, specular: 0x9fb8c8, shininess: 90 }));
       w.rotation.x = -Math.PI / 2; w.rotation.z = 0.5; w.position.y = 0.03;
       g.add(w);
       for (let k = 0; k < 6; k++) {
@@ -626,7 +750,7 @@ function landmark(c, world) {
       break;
     }
     case "pond": {
-      const w = new THREE.Mesh(new THREE.CircleGeometry(c.r * 0.55, 24), new THREE.MeshLambertMaterial({ color: 0x2f6a8f, emissive: 0x081822 }));
+      const w = new THREE.Mesh(new THREE.CircleGeometry(c.r * 0.55, 24), new THREE.MeshPhongMaterial({ color: 0x24587a, emissive: 0x05101a, specular: 0x9fb8c8, shininess: 90 }));
       w.rotation.x = -Math.PI / 2; w.position.y = 0.03; g.add(w);
       for (let k = 0; k < 8; k++) {
         const r = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1, 4), M(0x9a9a4a));
@@ -645,8 +769,8 @@ function landmark(c, world) {
       break;
     case "rocks":
       for (let k = 0; k < 6; k++) {
-        const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7 + (k % 3) * 0.4), M(0x8a8c90));
-        r.position.set(Math.cos(k * 1.1) * 2.5, 0.4, Math.sin(k * 1.1) * 2.5); r.rotation.set(k, k * 2, 0); g.add(r);
+        const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7 + (k % 3) * 0.4), new THREE.MeshLambertMaterial({ color: new THREE.Color().setHSL(0.1 + hash2(k, c.x) * 0.15, 0.08 + hash2(c.y, k) * 0.1, 0.36 + hash2(k, k) * 0.12), flatShading: true }));
+        r.position.set(Math.cos(k * 1.1) * 2.5, 0.25, Math.sin(k * 1.1) * 2.5); r.rotation.set(k, k * 2, 0); r.scale.set(1, 0.75, 1.1); g.add(r);
       }
       break;
     case "old burn": {
@@ -666,5 +790,117 @@ function landmark(c, world) {
       }
       break;
   }
+  g.traverse((o) => { if (o.isMesh && o.position.y > 0.05) { o.castShadow = true; o.receiveShadow = true; } });
+  return g;
+}
+
+// --- look helpers: all derived from place and index, never from an rng stream ---
+
+function hash2(x, y) {
+  const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return v - Math.floor(v);
+}
+function vnoise(x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), tx = x - x0, ty = y - y0;
+  const sx = tx * tx * (3 - 2 * tx), sy = ty * ty * (3 - 2 * ty);
+  const a = hash2(x0, y0), b = hash2(x0 + 1, y0), c = hash2(x0, y0 + 1), d = hash2(x0 + 1, y0 + 1);
+  return (a * (1 - sx) + b * sx) * (1 - sy) + (c * (1 - sx) + d * sx) * sy;
+}
+
+// one geometry from several pieces: [geometry, x, y, z, rotY, rotZ]
+function merge(parts) {
+  const pos = [], nor = [];
+  const m = new THREE.Matrix4(), e = new THREE.Euler();
+  for (const [g0, x = 0, y = 0, z = 0, ry = 0, rz = 0] of parts) {
+    const g = (g0.index ? g0.toNonIndexed() : g0.clone());
+    g.applyMatrix4(m.makeRotationFromEuler(e.set(0, ry, rz)).setPosition(x, y, z));
+    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  out.computeBoundingSphere();
+  return out;
+}
+
+// a conifer crown: stacked cones [radius, height, centre y], each tier turned a little
+function tiers(list) {
+  return merge(list.map(([r, h, y], k) => [new THREE.ConeGeometry(r, h, 8, 1), 0, y, 0, k * 0.4]));
+}
+
+// The sky: a dome that fades from the fog colour at the horizon to a deeper
+// zenith, with the sun's glow by day and stars by night. Fog-free; it follows
+// the camera, so it never has an edge.
+function skyDome() {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: {
+      horizon: { value: new THREE.Color(0x9cc3de) }, zenith: { value: new THREE.Color(0x3d6f9e) },
+      sunDir: { value: new THREE.Vector3(0, 1, 0) }, sunCol: { value: new THREE.Color(0xfff2dd) },
+      glow: { value: 1 }, stars: { value: 0 },
+    },
+    vertexShader: `varying vec3 vDir;
+      void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); gl_Position.z = gl_Position.w; }`,
+    fragmentShader: `uniform vec3 horizon, zenith, sunDir, sunCol; uniform float glow, stars; varying vec3 vDir;
+      float h(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453); }
+      void main() {
+        vec3 d = normalize(vDir);
+        float up = clamp(d.y, 0.0, 1.0);
+        vec3 c = mix(horizon, zenith, pow(up, 0.55) * smoothstep(-0.02, 0.25, d.y));
+        float s = max(dot(d, normalize(sunDir)), 0.0);
+        c += sunCol * glow * (pow(s, 8.0) * 0.35 + pow(s, 600.0) * 4.0);
+        vec3 cell = floor(d * 260.0);
+        float st = step(0.9975, h(cell)) * smoothstep(0.05, 0.35, d.y) * (0.6 + 0.4 * h(cell + 7.0));
+        c += vec3(0.85, 0.9, 1.0) * st * stars;
+        gl_FragColor = vec4(c, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+    side: THREE.BackSide, depthWrite: false, fog: false,
+  });
+  const m = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), mat);
+  m.renderOrder = -1; m.frustumCulled = false;
+  return m;
+}
+
+// The forest floor: grass in the open, ferns under the trees, a few stones.
+// Nothing here is shaped like a stick: on this ground a stick is information.
+function groundCover(world) {
+  const { w, h } = world, g = new THREE.Group();
+  const blade = new THREE.ConeGeometry(0.035, 0.5, 3, 1, true);
+  const grassGeo = merge([[blade, 0, 0.25, 0], [blade, 0.08, 0.2, 0.04, 0, 0.35], [blade, -0.07, 0.22, 0.03, 0, -0.3], [blade, 0.02, 0.18, -0.08, 1, 0.25], [blade, -0.03, 0.2, 0.08, 2, -0.2]]);
+  const frond = new THREE.PlaneGeometry(0.16, 0.8, 1, 1);
+  frond.rotateX(-Math.PI / 2 + 0.6); frond.translate(0, 0.2, -0.36);
+  const fernGeo = merge([0, 1, 2, 3, 4, 5].map((k) => [frond, 0, 0, 0, (k / 6) * Math.PI * 2]));
+  const stoneGeo = new THREE.DodecahedronGeometry(0.18, 0);
+  const near = (x, y) => world.clearings.some((c) => Math.hypot(c.x - x, c.y - y) < c.r * 0.75);
+  const spots = { grass: [], fern: [], stone: [] };
+  for (let cy = 0; cy < h; cy++)
+    for (let cx = 0; cx < w; cx++) {
+      const o = world.walk[cy * w + cx];
+      const onTrail = Math.abs(cx - world.trailX[cy]) <= 1.5 || world.decoyCells.has(cy * w + cx);
+      for (let k = 0; k < 2; k++) {
+        const r = hash2(cx * 3 + k, cy * 7 + 1), x = (cx + hash2(cx, cy * 5 + k)) * CELL, y = (cy + hash2(cx * 5 + k, cy)) * CELL;
+        if (near(x, y)) continue;
+        if (onTrail) { if (r < 0.05) spots.stone.push([x, y]); continue; }
+        if (o) { if (r < 0.6) spots.grass.push([x, y]); else if (r < 0.62) spots.stone.push([x, y]); }
+        else if (r < 0.45) spots.fern.push([x, y]);
+        else if (r < 0.7) spots.grass.push([x, y]);
+      }
+    }
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), C = new THREE.Color();
+  const lay = (geo, list, hue, sat, lit, size, flat) => {
+    const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide, flatShading: flat }), list.length);
+    list.forEach(([x, y], i) => {
+      const r = hash2(x * 3.1, y * 1.7), sz = size * (0.7 + r * 0.6);
+      Q.setFromAxisAngle(Y, r * 6.283);
+      M.compose(P.set(x, 0, -y), Q, S.set(sz, sz * (0.8 + hash2(y, x) * 0.5), sz)); im.setMatrixAt(i, M);
+      im.setColorAt(i, C.setHSL(hue + (hash2(x, y) - 0.5) * 0.06, sat, lit * (0.8 + r * 0.4)));
+    });
+    im.receiveShadow = true; im.instanceColor.needsUpdate = true;
+    g.add(im);
+  };
+  lay(grassGeo, spots.grass, 0.24, 0.45, 0.26, 1, false);
+  lay(fernGeo, spots.fern, 0.3, 0.45, 0.16, 0.7, false);
+  lay(stoneGeo, spots.stone, 0.12, 0.05, 0.4, 1, true);
   return g;
 }
