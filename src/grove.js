@@ -74,8 +74,12 @@ export function nightFalls(sim, d) {
   for (const ms of sim.missing) {
     if (!active(ms) || ms.takenDay !== d) continue;
     const r = stream(hash("gtree", sim.seed, ms.id, d));
-    if (r() >= 0.4) continue;
-    const real = r() < 0.5;
+    // cheat (sim.cheats.gbody): the next one taken gets a tree, and it is a body. Same draws either way.
+    const cheat = sim.cheats?.gbody;
+    const stands = r() < 0.4, realRoll = r() < 0.5;
+    if (!stands && !cheat) continue;
+    const real = cheat ? false : realRoll;
+    if (cheat) delete sim.cheats.gbody;
     g.enc = { d, msId: ms.id, real, x: ms.x, y: ms.y, hits: 0, need: 2 + (r() < 0.5 ? 1 : 0), drops: 0, startArms: ms.arms, headDown: false, full: false };
     break;
   }

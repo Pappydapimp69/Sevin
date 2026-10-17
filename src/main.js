@@ -84,9 +84,23 @@ function recruit(seed) {
   }, () => recruit(freshSeed()));
 }
 
+// Cheats, for testing: `?cheat=body` (or `#cheat=body`) on the URL, or
+// __sevin.cheat("body") in the console. body: the next golden tree is a body.
+const CHEATS = { body: { key: "gbody", text: "Cheat on: the next golden tree is a body." } };
+let pendingCheat = (String(location.search) + String(location.hash)).match(/cheat=(\w+)/)?.[1] || null;
+function cheat(name) {
+  const c = CHEATS[name];
+  if (!c) return `no such cheat: ${name}`;
+  if (!sim) { pendingCheat = name; return "set for the next run"; }
+  (sim.cheats ||= {})[c.key] = true;
+  S.say(sim, c.text, "warn");
+  return c.text;
+}
+
 function start(run) {
   if (!run) return title();
   sim = run;
+  if (pendingCheat && !sim.tutorial) { cheat(pendingCheat); pendingCheat = null; }
   audio.titleBed(false);
   ui.resetLog();
   input.state.yaw = sim.player.yaw;
@@ -492,4 +506,4 @@ const hudHide = () => ui.hideHud();
 if (skipSplash(location.hash, location.search)) title(); else splash();
 
 // for tests and the curious
-window.__sevin = { Grove, swapOut, get sim() { return sim; }, get scene() { return scene; }, get splashUp() { return splashUp; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
+window.__sevin = { cheat, Grove, swapOut, get sim() { return sim; }, get scene() { return scene; }, get splashUp() { return splashUp; }, S, verb, input, audio, renderer, tap, ui, start, recruit, title, createTutorial, sleep: () => doSleep() };
