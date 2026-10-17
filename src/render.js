@@ -640,8 +640,15 @@ export function createRenderer(canvas) {
     const r = canvas.getBoundingClientRect();
     ray.setFromCamera(new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1), camera);
     ray.far = 30;
-    for (const hit of ray.intersectObjects(built.picks, false)) {
+    // forest trees are instanced: a hit on a trunk or a crown names the tree by its index
+    const trees = skip.includes("fell") ? [] : [built.trunkInst, ...built.crowns];
+    for (const hit of ray.intersectObjects([...built.picks, ...trees], false)) {
       const o = hit.object, owner = o.userData.owner;
+      if (o.isInstancedMesh) {
+        const i = o === built.trunkInst ? hit.instanceId : built.treeSlots.findIndex((sl) => sl.arr === o && sl.idx === hit.instanceId);
+        if (i >= 0) return { kind: "fell", id: i, dist: hit.distance };
+        continue;
+      }
       // a hidden thing is not there to tap (unused phantom sticks keep a stale target)
       if (!o.visible || (owner && !owner.visible)) continue;
       let up = o.parent, shown = true;

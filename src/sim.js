@@ -808,6 +808,13 @@ export function resolveAction(sim, tolerance = 1) {
   return best;
 }
 
+/** A forest tree you tapped: a target if it stands and is in reach, not only the nearest one. */
+export function treeTarget(sim, i, tolerance = 1) {
+  const t = sim.world.trees[i], p = sim.player;
+  if (!t || sim.tutorial || sim.over || p.holding || sim.felled.includes(i) || dist(t, p) >= 2.2 * tolerance) return null;
+  return { kind: "fell", id: i, x: t.x, y: t.y, h: 1.4, label: sim.work?.kind === "fell" && sim.work.id === i ? "Stop cutting" : "Cut down the tree" };
+}
+
 /** The target a tap or a press means, if it is still in reach. */
 export function targetFor(sim, kind, id, tolerance = 1) {
   return actionTargets(sim, tolerance).find((t) => t.kind === kind && t.id === id) || null;

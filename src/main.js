@@ -199,9 +199,11 @@ function tap(x, y) {
   // a tap on someone does nothing (Ask is its own button); it reaches what is behind them
   const hit = renderer.pick(x, y, ["member"]);
   if (!hit) return;
+  // a forest tree: any one in reach, not only the nearest; a stump, or the training camp's trees, are just trees
+  if (hit.kind === "fell" && (sim.tutorial || sim.felled.includes(hit.id))) return;
   const kinds = hit.kind === "fire" ? ["snap", "light", "feed"] : [hit.kind];
   const all = S.actionTargets(sim, tolerance());
-  const t = kinds.map((k) => all.find((a) => a.kind === k && a.id === hit.id)).find(Boolean);
+  const t = hit.kind === "fell" ? S.treeTarget(sim, hit.id, tolerance()) : kinds.map((k) => all.find((a) => a.kind === k && a.id === hit.id)).find(Boolean);
   if (!t) {
     // wood is not offered to full arms: say that, not "too far"
     const full = shownWood(sim) >= S.carryMax(sim);
