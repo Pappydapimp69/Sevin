@@ -808,6 +808,16 @@ export function resolveAction(sim, tolerance = 1) {
   return best;
 }
 
+/**
+ * Cheats, for testing. gbody: the next golden tree is a body (grove.js).
+ * mirage: every dead end arms whatever the mind, and ones already gone plain
+ * come back (mirage.js). Kept in the run, so a save keeps them.
+ */
+export function setCheat(sim, key) {
+  (sim.cheats ||= {})[key] = true;
+  if (key === "mirage") for (const id in sim.mirage) if (sim.mirage[id].s === "plain") sim.mirage[id].s = "idle";
+}
+
 /** A forest tree you tapped: a target if it stands and is in reach, not only the nearest one. */
 export function treeTarget(sim, i, tolerance = 1) {
   const t = sim.world.trees[i], p = sim.player;

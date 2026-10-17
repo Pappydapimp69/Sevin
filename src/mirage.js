@@ -23,6 +23,7 @@ export const KINDS = ["castle", "chest", "hole", "cabin", "well", "pylon", "lamp
 const SEAL_HOURS = 10;                   // game hours: it stays a long while, but the way back never stays shut
 const GIVE_S = 18;                       // seconds of walking at it before it stops drawing away
 const TURN_S = 2;                        // seconds looking back before the way in returns
+const AHEAD = 12;                        // metres: it shows this far ahead of you, out past the clearing, never at your feet
 
 export const blocked = (st) => !!st && (st.s === "sealed" || st.s === "shown");
 export const kindFor = (sim, d) => KINDS[Math.floor(stream(hash("mirage", sim.seed, d.id))() * KINDS.length)];
@@ -61,7 +62,7 @@ export function tickMirage(sim, dt, input = {}) {
     const f = fx * d.inDir.x + fy * d.inDir.y;                     // +1 looking in, -1 looking out
     switch (st.s) {
       case "idle":
-        if (deep) st.s = mindLevel(sim) < MIRAGE_MIND ? "armed" : "plain";
+        if (deep) st.s = mindLevel(sim) < MIRAGE_MIND || sim.cheats?.mirage ? "armed" : "plain";
         break;
       case "armed":
         if (!deep && depth < 8) st.s = "idle";                      // walked back out before anything happened
@@ -70,7 +71,10 @@ export function tickMirage(sim, dt, input = {}) {
       case "sealed":
         if (f > 0.55) {
           st.s = "shown";
-          st.obj = { x: d.clearing.x, y: d.clearing.y };                  // the dead end, grown into something, ahead
+          // the dead end, grown into something, ahead: well ahead, out past the
+          // clearing if need be (you mostly turn round already standing in it)
+          const ahead = Math.max(0, depth + AHEAD - ((d.clearing.x - d.entrance.x) * d.inDir.x + (d.clearing.y - d.entrance.y) * d.inDir.y));
+          st.obj = { x: d.clearing.x + d.inDir.x * ahead, y: d.clearing.y + d.inDir.y * ahead };
           st.dist = Math.max(6, Math.hypot(st.obj.x - p.x, st.obj.y - p.y)); st.stretch = 0;
           sim.events.push({ kind: "shown" });
         }
@@ -83,7 +87,8 @@ export function tickMirage(sim, dt, input = {}) {
         // in a lit branch's light it holds still
         if (inGlow(sim, o.x, o.y)) { st.dist = dnow; st.stretch = 0; break; }
         // Walk at it long enough and it tires of running: the drawing-away fades over
-        // GIVE_S seconds of pressing on, and it never goes past the far side of the clearing.
+        // GIVE_S seconds of pressing on, and as it does it comes back in to the far
+        // side of the clearing, where your feet can reach it.
         const pushing = (input.fwd || 0) > 0.05 && f > 0.3;
         if (pushing) st.push = (st.push || 0) + dt;
         const give = Math.max(0, 1 - (st.push || 0) / GIVE_S);
@@ -91,7 +96,8 @@ export function tickMirage(sim, dt, input = {}) {
         if (closed > 0) { o.x += d.inDir.x * closed * 1.15; o.y += d.inDir.y * closed * 1.15; }
         const far = (d.clearing.x - d.entrance.x) * d.inDir.x + (d.clearing.y - d.entrance.y) * d.inDir.y + d.clearing.r * 0.6;
         const od = (o.x - d.entrance.x) * d.inDir.x + (o.y - d.entrance.y) * d.inDir.y;
-        if (od > far) { o.x -= d.inDir.x * (od - far); o.y -= d.inDir.y * (od - far); }
+        const lim = far + AHEAD * give;
+        if (od > lim) { o.x -= d.inDir.x * (od - lim); o.y -= d.inDir.y * (od - lim); }
         const nd = Math.hypot(o.x - p.x, o.y - p.y);
         st.dist = Math.min(nd, 80);
         // pressing on counts too: against the wall you still walk, and it still gets further

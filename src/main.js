@@ -84,17 +84,22 @@ function recruit(seed) {
   }, () => recruit(freshSeed()));
 }
 
-// Cheats, for testing: `?cheat=body` (or `#cheat=body`) on the URL, or
-// __sevin.cheat("body") in the console. body: the next golden tree is a body.
-const CHEATS = { body: { key: "gbody", text: "Cheat on: the next golden tree is a body." } };
-let pendingCheat = (String(location.search) + String(location.hash)).match(/cheat=(\w+)/)?.[1] || null;
-function cheat(name) {
-  const c = CHEATS[name];
-  if (!c) return `no such cheat: ${name}`;
-  if (!sim) { pendingCheat = name; return "set for the next run"; }
-  (sim.cheats ||= {})[c.key] = true;
-  S.say(sim, c.text, "warn");
-  return c.text;
+// Cheats, for testing: `?cheat=body` (or `#cheat=body,mirage`) on the URL, or
+// __sevin.cheat("body") in the console.
+const CHEATS = {
+  body: { key: "gbody", text: "Cheat on: the next golden tree is a body." },
+  mirage: { key: "mirage", text: "Cheat on: every dead end turns into a mirage (they are off the trail in the far north)." },
+};
+let pendingCheat = (String(location.search) + String(location.hash)).match(/cheat=([\w,]+)/)?.[1] || null;
+function cheat(names) {
+  return String(names).split(",").map((name) => {
+    const c = CHEATS[name];
+    if (!c) return `no such cheat: ${name}`;
+    if (!sim) { pendingCheat = names; return "set for the next run"; }
+    S.setCheat(sim, c.key);
+    S.say(sim, c.text, "warn");
+    return c.text;
+  }).join(" ");
 }
 
 function start(run) {

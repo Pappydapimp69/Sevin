@@ -55,7 +55,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
       for (let i = 0; i < world.trees.length; i++) {
         const t = world.trees[i], dx = t.x - p.x, dy = t.y - p.y, d2 = dx * dx + dy * dy;
         if (d2 > 484) continue;
-        if (stream(hash("bend", sim.seed, i))() > 0.75 || inGlow(sim, t.x, t.y) || sim.felled?.includes(i)) continue;
+        if (parted.has(i) || stream(hash("bend", sim.seed, i))() > 0.75 || inGlow(sim, t.x, t.y) || sim.felled?.includes(i)) continue;
         const d = Math.sqrt(d2), k = smooth(clamp(1 - d / 22)) * amp;
         // lean toward the player: rotate about the horizontal axis perpendicular to the line to them
         const ax = new THREE.Vector3(dy / (d || 1), 0, dx / (d || 1));      // (three x, z = -y)
@@ -68,7 +68,7 @@ export function createIllusions(THREE, scene, B, world, camera) {
         now.add(i);
       }
     }
-    for (const i of bent.keys()) if (!now.has(i) && !sim.felled?.includes(i)) placeTree(i, 0, NOQ);   // a stump stays a stump
+    for (const i of bent.keys()) if (!now.has(i) && !parted.has(i) && !sim.felled?.includes(i)) placeTree(i, 0, NOQ);   // a stump stays a stump
     bent.clear(); for (const i of now) bent.set(i, true);
     if (now.size || bent.size) { B.trunkInst.instanceMatrix.needsUpdate = true; for (const c of B.crowns) c.instanceMatrix.needsUpdate = true; }
   }
@@ -194,8 +194,19 @@ export function createIllusions(THREE, scene, B, world, camera) {
     return { grove, obj, k: 0 };
   });
 
+  // While a mirage stands out past the clearing, the trees in the line to it
+  // lean aside, so it can be seen. Their roots stay put: the wall is still a wall.
+  let parted = new Map();                       // tree index -> lean (radians)
+  function partTrees(sim, want) {
+    for (const [i, lean] of want) { const t = world.trees[i], ax = want.axes.get(i); placeTree(i, lean, ax); }
+    for (const i of parted.keys()) if (!want.has(i) && !sim.felled?.includes(i)) placeTree(i, 0, NOQ);
+    if (want.size || parted.size) { B.trunkInst.instanceMatrix.needsUpdate = true; for (const c of B.crowns) c.instanceMatrix.needsUpdate = true; }
+    parted = want;
+  }
+
   function mirage(sim, dt, view) {
     let stretch = 0;
+    const want = new Map(); want.axes = new Map();
     world.decoys.forEach((d, i) => {
       const D = B.decoys[i], st = sim.mirage?.[d.id];
       const on = !!st && (st.s === "sealed" || st.s === "shown");
@@ -215,8 +226,22 @@ export function createIllusions(THREE, scene, B, world, camera) {
         const w = 1 + Math.sin(clock * 3) * 0.015, far = Math.max(1, Math.min(4, (st.dist || 14) / 14));     // it grows as it goes, so it is never lost behind the trunks
         o.scale.set(w * far, far / w, w * far);
         stretch = Math.max(stretch, st.stretch || 0);
+        // the trees between the clearing and it part
+        const ex = d.entrance.x, ey = d.entrance.y, ix = d.inDir.x, iy = d.inDir.y;
+        const edge = (d.clearing.x - ex) * ix + (d.clearing.y - ey) * iy + d.clearing.r * 0.5;
+        const oAlong = (st.obj.x - ex) * ix + (st.obj.y - ey) * iy;
+        const axis = new THREE.Vector3(ix, 0, -iy).normalize();
+        for (let i = 0; i < world.trees.length; i++) {
+          const t = world.trees[i];
+          const along = (t.x - ex) * ix + (t.y - ey) * iy;
+          if (along < edge || along > oAlong + 6 || sim.felled?.includes(i)) continue;
+          const lat = (t.x - ex) * iy - (t.y - ey) * ix;           // + to the side the lean carries a crown
+          if (Math.abs(lat) > 5) continue;
+          want.set(i, Math.sign(lat || 1) * 0.75 * D.k * (1 - Math.abs(lat) / 7)); want.axes.set(i, axis);
+        }
       }
     });
+    partTrees(sim, want);
     return stretch;
   }
 
