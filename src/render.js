@@ -10,6 +10,9 @@ import { createGroveView } from "./grove-view.js";
 import { personOut } from "./grove.js";
 
 const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
+// Wind in the trees and grass, done in the vertex shader so each tree sways
+// on its own phase. uWind is about 1.4 on a windy day and a breath otherwise.
+const WIND = { uTime: { value: 0 }, uWind: { value: 0.12 } };
 const SLOT_COLOURS = [0xc8553d, 0x2e86ab, 0xf6ae2d, 0x86bbd8, 0x8f6593, 0x5c946e, 0xd4a373, 0x9b9b9b];
 const WEATHER_LOOK = {
   clear: { sky: 0x9cc3de, fog: 70, ground: 0x34502c, light: 1.0 },
@@ -120,7 +123,7 @@ export function createRenderer(canvas) {
     const n = world.trees.length;
     const trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.14, 0.3, 3, 7), new THREE.MeshLambertMaterial({ color: 0xffffff }), n);
     const crownGeo = tiers([[1.75, 2.6, -1.25], [1.4, 2.4, -0.1], [1.0, 2.1, 1.0], [0.55, 1.5, 1.85]]);
-    const crownMat = () => new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true });
+    const crownMat = () => sway(new THREE.MeshLambertMaterial({ color: 0xffffff, flatShading: true }), 2.6, 0.035);
     const crownA = new THREE.InstancedMesh(crownGeo, crownMat(), n);
     const crownB = new THREE.InstancedMesh(crownGeo, crownMat(), n);
     const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
@@ -537,9 +540,10 @@ export function createRenderer(canvas) {
     }
     P.geometry.attributes.position.needsUpdate = true;
     P.position.set(p.x, 0, -p.y);
-    // wind moves the tops
-    const sway = windy ? Math.sin(performance.now() / 500) * 0.02 : 0;
-    for (const c of B.crowns) c.rotation.z = sway;
+    // wind moves the tops (and the grass): strong on a windy day, a little in rain, a breath otherwise; Calm quiets it
+    const wantWind = (windy ? 1.4 : wet ? 0.35 : 0.12) * (calmPref ? 0.3 : 1);
+    WIND.uWind.value += (wantWind - WIND.uWind.value) * Math.min(1, dt * 0.5);
+    WIND.uTime.value = performance.now() / 1000;
 
     // things on the ground that are not there. Still, they are drawn exactly
     // like the real sticks (a snake lies as a stick lies). Woken, they slither.
@@ -896,7 +900,8 @@ function groundCover(world) {
     }
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), S = new THREE.Vector3(), P = new THREE.Vector3(), Y = new THREE.Vector3(0, 1, 0), C = new THREE.Color();
   const lay = (geo, list, hue, sat, lit, size, flat) => {
-    const im = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide, flatShading: flat }), list.length);
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide, flatShading: flat });
+    const im = new THREE.InstancedMesh(geo, flat ? mat : sway(mat, 0, 0.22), list.length);
     list.forEach(([x, y], i) => {
       const r = hash2(x * 3.1, y * 1.7), sz = size * (0.7 + r * 0.6);
       Q.setFromAxisAngle(Y, r * 6.283);
@@ -910,4 +915,24 @@ function groundCover(world) {
   lay(fernGeo, spots.fern, 0.3, 0.45, 0.16, 0.7, false);
   lay(stoneGeo, spots.stone, 0.12, 0.05, 0.4, 1, true);
   return g;
+}
+
+// Bend a material's vertices with the wind: the higher above `lift` (in the
+// mesh's own units), the further it goes. Periods stay under 2.5 s, out of the
+// band where slow repeating motion makes people sick (Brain seven#E81).
+function sway(mat, lift, k) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = WIND.uTime; sh.uniforms.uWind = WIND.uWind;
+    sh.vertexShader = "uniform float uTime;\nuniform float uWind;\n" + sh.vertexShader.replace("#include <begin_vertex>", `#include <begin_vertex>
+      #ifdef USE_INSTANCING
+        float ph = instanceMatrix[3].x * 0.37 + instanceMatrix[3].z * 0.23;
+      #else
+        float ph = 0.0;
+      #endif
+      float hk = max(0.0, transformed.y + ${lift.toFixed(2)}) * ${k.toFixed(3)};
+      float sw = uWind * (sin(uTime * 2.8 + ph) * 0.65 + sin(uTime * 5.3 + ph * 1.7) * 0.25 + 0.35);
+      transformed.x += sw * hk; transformed.z += sw * hk * 0.45 * sin(uTime * 2.1 + ph * 0.6);`);
+  };
+  mat.customProgramCacheKey = () => `sway${lift}:${k}`;
+  return mat;
 }

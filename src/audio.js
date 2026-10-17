@@ -7,9 +7,10 @@ import { notes, phrase, PLAYER_VOICE, callNotes } from "./voice.js";
 
 export function createAudio() {
   let ctx = null, master = null, noise = null;
-  let wind = null, fire = null, bed = [];
+  let wind = null, rain = null, fire = null, bed = [];
   let volume = 0.7;
   let behindClock = 20, chopClock = 0, stepClock = 0, crackleClock = 0, whisperClock = 20;
+  let birdClock = 4, cricketClock = 1, dripClock = 2;
 
   function unlock() {
     if (ctx) { if (ctx.state === "suspended") ctx.resume(); return; }
@@ -22,6 +23,7 @@ export function createAudio() {
     const d = noise.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     wind = loop(400, 0.0);
+    rain = loop(1600, 0.0, "highpass");
     fire = loop(900, 0.0, "bandpass");
     // the title bed: two soft detuned drones, a fifth apart
     bed = [55, 82.5].map((f, i) => {
@@ -46,7 +48,7 @@ export function createAudio() {
   function titleBed(on) {
     if (!ctx) return;
     const t = ctx.currentTime;
-    wind.g.gain.setTargetAtTime(on ? 0.07 : 0, t, on ? 1.5 : 0.4);
+    wind.g.gain.setTargetAtTime(on ? 0.035 : 0, t, on ? 1.5 : 0.4);
     wind.f.frequency.setTargetAtTime(420, t, 0.5);
     for (const g of bed) g.gain.setTargetAtTime(on ? 0.05 : 0, t, on ? 2.5 : 0.6);
   }
@@ -174,14 +176,65 @@ export function createAudio() {
     }
   }
 
-  /** Every frame: wind by weather, fire by distance, steps, the axe. */
+  // A bird: a few quick sweeps, high above any whistled call (calls are held
+  // notes at 1250-2700 Hz), so birdsong can never be heard as someone's call.
+  function chirp(at, pan, f0, f1, dur, gain) {
+    const t = ctx.currentTime + at;
+    const o = ctx.createOscillator(); o.type = "sine";
+    o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + dur * 0.25); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    const p = ctx.createStereoPanner(); p.pan.value = pan;
+    o.connect(g); g.connect(p); p.connect(master);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function bird() {
+    const pan = Math.random() * 1.6 - 0.8, base = 3800 + Math.random() * 2400, n = 2 + Math.floor(Math.random() * 5);
+    const up = Math.random() < 0.5, gain = 0.02 + Math.random() * 0.025;
+    for (let i = 0; i < n; i++) {
+      const f = base * (1 + (Math.random() - 0.5) * 0.12);
+      chirp(i * (0.09 + Math.random() * 0.06), pan, up ? f : f * 1.35, up ? f * 1.35 : f, 0.04 + Math.random() * 0.03, gain);
+    }
+  }
+  // A cricket: three short pulses at one high pitch, from somewhere off to the side.
+  function cricket(gain) {
+    const pan = Math.random() * 1.8 - 0.9, f = 4300 + Math.random() * 600;
+    for (let i = 0; i < 3; i++) chirp(i * 0.045, pan, f, f * 1.01, 0.025, gain);
+  }
+
+  /**
+   * Every frame: the weather heard (wind only on a windy day, rain in the
+   * drizzle, birds by day and crickets by night when it is still), fire by
+   * distance, steps, the axe.
+   */
   function frame(sim, dt, moving, running) {
     if (!ctx) return;
     const weather = sim.weather[Math.floor((sim.time - 6) / 24) + 1];
-    const t = ctx.currentTime;
-    const w = weather === "wind" ? 0.22 : weather === "drizzle" ? 0.14 : 0.06;
-    wind.g.gain.setTargetAtTime(w * (isNight(sim.time) ? 0.7 : 1), t, 0.5);
-    wind.f.frequency.setTargetAtTime(weather === "drizzle" ? 2500 : 380 + Math.sin(t * 0.3) * 120, t, 0.5);
+    const t = ctx.currentTime, night = isNight(sim.time);
+    const windy = weather === "wind", wet = weather === "drizzle";
+    // wind comes in gusts, and only on a windy day
+    const gust = 0.55 + 0.3 * Math.sin(t * 0.21) + 0.15 * Math.sin(t * 0.67 + 1.3);
+    wind.g.gain.setTargetAtTime(windy ? 0.2 * gust * (night ? 0.75 : 1) : 0, t, 0.6);
+    wind.f.frequency.setTargetAtTime(300 + gust * 260, t, 0.5);
+    // rain: a steady hiss and the patter of drops on leaves
+    rain.g.gain.setTargetAtTime(wet ? 0.05 : 0, t, 0.8);
+    if (wet && Math.random() < dt * 45) burst({ freq: 2500 + Math.random() * 4500, q: 2, dur: 0.012 + Math.random() * 0.012, gain: 0.03 + Math.random() * 0.07, pan: Math.random() * 2 - 1 });
+    // in fog the trees drip
+    dripClock -= dt;
+    if (weather === "fog" && dripClock <= 0) { dripClock = 0.8 + Math.random() * 3; burst({ freq: 1100 + Math.random() * 900, q: 6, dur: 0.035, gain: 0.08, pan: Math.random() * 1.6 - 0.8 }); }
+    // birds by day: plenty when clear, a few in wind or cold, hardly any in fog or rain
+    birdClock -= dt;
+    if (!night && birdClock <= 0) {
+      const busy = { clear: 1, cold: 0.45, wind: 0.35, fog: 0.15, drizzle: 0.1 }[weather] ?? 0.5;
+      birdClock = (2.5 + Math.random() * 6) / busy;
+      bird();
+    }
+    // crickets by night, unless it is cold or raining
+    cricketClock -= dt;
+    if (night && cricketClock <= 0) {
+      cricketClock = 0.35 + Math.random() * 0.6;
+      if (weather !== "cold" && !wet) cricket(windy ? 0.008 : weather === "fog" ? 0.01 : 0.016);
+    }
 
     const c = sim.camp;
     const dist = Math.hypot(c.x - sim.player.x, c.y - sim.player.y);
